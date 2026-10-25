@@ -1,0 +1,39 @@
+{
+  "id": "/",
+  "name": "sparrowsql — Learn SQL by actually using SQL",
+  "short_name": "SparrowSQL",
+  "description": "sparrowsql: learn SQL by actually using SQL. Read the 3D Interactive SQL Book, write queries in a real in-browser SQLite WebAssembly database, and let Sparrow explain what happened.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e0c0a",
+  "theme_color": "#0e0c0a",
+  "categories": ["education", "developer", "productivity"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

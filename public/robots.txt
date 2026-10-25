@@ -1,0 +1,5 @@
+# SparrowSQL robots.txt
+User-agent: *
+Allow: /
+
+Sitemap: https://sparrowsql.com/sitemap.xml

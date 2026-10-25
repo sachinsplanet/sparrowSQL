@@ -1,0 +1,3683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Complete SQL — 3D Interactive Book (SQL by sparrowsql)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- SQL.js (SQLite WebAssembly for Live Playground) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+
+  <style>
+    :root {
+      --book-width: 470px;
+      --book-height: 650px;
+      --paper-bg: #fcfaf4;
+      --paper-border: #dfd7c6;
+      --cover-bg: #fafaf8;
+      --brand-blue: #0077ff;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #070a12;
+      font-family: 'Inter', sans-serif;
+      color: #f8fafc;
+    }
+
+    /* ============================================================================
+       STRICT "BOOK-ONLY" FULLSCREEN MODE
+       When active, ONLY AND ONLY the 3D book is visible on the entire screen!
+       ============================================================================ */
+    body.fullscreen-book-only .ui-chrome,
+    body.fullscreen-book-only #topHeaderBar,
+    body.fullscreen-book-only #bottomControlBar,
+    body.fullscreen-book-only #sidePrevBtn,
+    body.fullscreen-book-only #sideNextBtn,
+    body.fullscreen-book-only #tocDrawer,
+    body.fullscreen-book-only #sqlModal,
+    body.fullscreen-book-only #toastNotice {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+    }
+
+    body.fullscreen-book-only .book-viewport {
+      padding-bottom: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+    }
+
+    /* Studio Ambient Backdrop & Bokeh */
+    .studio-backdrop {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(36, 72, 138, 0.46) 0%, rgba(12, 18, 34, 0.88) 54%, #04060b 100%),
+        linear-gradient(180deg, #090e1a 0%, #111827 68%, #06080d 100%);
+      z-index: 0;
+    }
+
+    /* Desk Reflective Surface */
+    .desk-surface {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 25vh;
+      background:
+        radial-gradient(ellipse 72% 55% at 50% 0%, rgba(251, 191, 36, 0.13) 0%, rgba(56, 189, 248, 0.06) 48%, transparent 82%),
+        linear-gradient(180deg, rgba(15, 23, 42, 0.32) 0%, rgba(5, 8, 17, 0.96) 38%, #030509 100%);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.85);
+      z-index: 1;
+    }
+
+    /* Glassmorphism Controls */
+    .glass-pill {
+      background: rgba(15, 23, 42, 0.62);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .glass-btn {
+      background: rgba(15, 23, 42, 0.62);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .glass-btn:hover:not(:disabled) {
+      background: rgba(30, 41, 59, 0.85);
+      border-color: rgba(255, 255, 255, 0.28);
+      transform: translateY(-1px) scale(1.03);
+      box-shadow: 0 12px 28px rgba(0, 119, 255, 0.22);
+    }
+    .glass-btn:active:not(:disabled) {
+      transform: translateY(0) scale(0.97);
+    }
+    .glass-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* 3D Book Stage */
+    .book-viewport {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 2600px;
+      z-index: 10;
+      padding-bottom: 28px;
+      transition: padding 0.4s ease;
+    }
+
+    .book-scaler {
+      transform-style: preserve-3d;
+      transition: transform 0.52s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .book-parallax-rig {
+      transform-style: preserve-3d;
+      transition: transform 0.18s ease-out;
+    }
+
+    .book-scene {
+      position: relative;
+      width: calc(var(--book-width) * 2);
+      height: var(--book-height);
+      transform-style: preserve-3d;
+      transition: transform 0.72s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Realistic Floor Shadow & Warm Desk Reflection beneath the 3D Book */
+    .book-floor-shadow {
+      position: absolute;
+      bottom: -40px;
+      left: 3%;
+      right: 3%;
+      height: 64px;
+      background:
+        radial-gradient(ellipse at center, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.62) 48%, transparent 78%),
+        radial-gradient(ellipse at 50% 35%, rgba(254, 243, 199, 0.14) 0%, transparent 60%);
+      filter: blur(15px);
+      transform: rotateX(76deg) translateZ(-28px);
+      transition: all 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+      pointer-events: none;
+    }
+
+    /* Hardcover Back Board Base */
+    .hardcover-base {
+      position: absolute;
+      top: -9px;
+      bottom: -12px;
+      left: -15px;
+      right: -15px;
+      border-radius: 11px;
+      background:
+        linear-gradient(90deg, #0d121d 0%, #1c2538 46.5%, #070a10 50%, #1c2538 53.5%, #0d121d 100%);
+      border: 1.5px solid rgba(255, 255, 255, 0.14);
+      box-shadow:
+        0 30px 65px rgba(0, 0, 0, 0.9),
+        0 8px 20px rgba(0, 0, 0, 0.75),
+        inset 0 1px 2px rgba(255, 255, 255, 0.18),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.8);
+      transform: translateZ(-20px);
+      transition: opacity 0.5s ease, clip-path 0.68s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Center Book Spine Ridge & Head/Tail Cloth Bands */
+    .book-spine-hinge {
+      position: absolute;
+      top: -10px;
+      bottom: -13px;
+      left: calc(50% - 18px);
+      width: 36px;
+      background:
+        linear-gradient(90deg, #070a11 0%, #25314a 25%, #0d121c 50%, #25314a 75%, #070a11 100%);
+      border-radius: 5px;
+      transform: translateZ(-17px);
+      box-shadow: inset 0 0 12px rgba(0,0,0,0.95), 0 10px 25px rgba(0,0,0,0.7);
+      z-index: 1;
+      transition: opacity 0.45s ease;
+    }
+    .book-spine-hinge::before,
+    .book-spine-hinge::after {
+      content: "";
+      position: absolute;
+      left: 4px;
+      right: 4px;
+      height: 6px;
+      background: repeating-linear-gradient(90deg, #d97706 0px, #fbbf24 3px, #1e40af 3px, #3b82f6 6px);
+      border-radius: 2px;
+      opacity: 0.85;
+    }
+    .book-spine-hinge::before { top: 2px; }
+    .book-spine-hinge::after { bottom: 3px; }
+
+    /* Layered Paper Block Edges (Left & Right stacks) */
+    .paper-stack-left,
+    .paper-stack-right {
+      position: absolute;
+      top: 1px;
+      bottom: 1px;
+      pointer-events: none;
+      transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease, transform 0.5s ease;
+      z-index: 2;
+    }
+
+    .paper-stack-left {
+      left: -10px;
+      width: 15px;
+      border-radius: 4px 0 0 4px;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,0.18) 0%, transparent 8%, transparent 92%, rgba(0,0,0,0.24) 100%),
+        repeating-linear-gradient(
+          90deg,
+          #dfd6c1 0px,
+          #faf6ed 1.2px,
+          #cbbda0 2.4px
+        );
+      box-shadow: -4px 6px 14px rgba(0, 0, 0, 0.55), inset 1px 0 3px rgba(255,255,255,0.5);
+      transform-origin: right center;
+      transform: rotateY(-12deg);
+    }
+
+    .paper-stack-right {
+      right: -10px;
+      width: 15px;
+      border-radius: 0 4px 4px 0;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,0.18) 0%, transparent 8%, transparent 92%, rgba(0,0,0,0.24) 100%),
+        repeating-linear-gradient(
+          90deg,
+          #cbbda0 0px,
+          #faf6ed 1.2px,
+          #dfd6c1 2.4px
+        );
+      box-shadow: 4px 6px 14px rgba(0, 0, 0, 0.55), inset -1px 0 3px rgba(255,255,255,0.5);
+      transform-origin: left center;
+      transform: rotateY(12deg);
+    }
+
+    /* Bottom Arched Paper Edge Thickness (Gives curved open-book profile like 3dbook photo) */
+    .paper-bottom-edge-left,
+    .paper-bottom-edge-right {
+      position: absolute;
+      bottom: -8px;
+      height: 10px;
+      pointer-events: none;
+      background:
+        repeating-linear-gradient(
+          180deg,
+          #f3efe4 0px,
+          #cfc5ae 1.3px,
+          #faf7f0 2.6px
+        );
+      box-shadow: 0 6px 12px rgba(0,0,0,0.52);
+      transition: all 0.5s ease;
+      z-index: 3;
+    }
+    .paper-bottom-edge-left {
+      left: -4px;
+      width: calc(50% + 4px);
+      border-radius: 0 0 40% 6px / 0 0 8px 4px;
+      background-image:
+        linear-gradient(90deg, rgba(0,0,0,0.18) 0%, rgba(255,255,255,0.35) 55%, rgba(0,0,0,0.48) 100%),
+        repeating-linear-gradient(180deg, #f3efe4 0px, #cfc5ae 1.4px, #faf7f0 2.8px);
+    }
+    .paper-bottom-edge-right {
+      right: -4px;
+      width: calc(50% + 4px);
+      border-radius: 0 0 6px 40% / 0 0 4px 8px;
+      background-image:
+        linear-gradient(90deg, rgba(0,0,0,0.48) 0%, rgba(255,255,255,0.35) 45%, rgba(0,0,0,0.18) 100%),
+        repeating-linear-gradient(180deg, #f3efe4 0px, #cfc5ae 1.4px, #faf7f0 2.8px);
+    }
+
+    /* Dynamic Cast Shadow swept across the open book pages during a flip */
+    .book-gutter-ambient-shadow {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 999;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        transparent 44%,
+        rgba(15, 12, 8, 0.08) 47.5%,
+        rgba(10, 8, 5, 0.34) 50%,
+        rgba(15, 12, 8, 0.08) 52.5%,
+        transparent 56%,
+        transparent 100%
+      );
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .dynamic-cast-shadow {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+      left: 0;
+      pointer-events: none;
+      z-index: 998;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    /* Individual 3D Sheet */
+    .sheet {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: var(--book-width);
+      height: var(--book-height);
+      transform-origin: left center;
+      transform-style: preserve-3d;
+      cursor: grab;
+      will-change: transform;
+    }
+    .sheet:active {
+      cursor: grabbing;
+    }
+
+    /* Front & Back Faces of each Sheet */
+    .page-face {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      background-color: var(--paper-bg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transform-style: preserve-3d;
+    }
+
+    /* Realistic Fine Paper Grain + Cylindrical Arch Lighting Overlay */
+    .page-face::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    /* Right-hand Page (Front of Sheet) — Curved cylindrical arch out of spine */
+    .page-front {
+      border-radius: 0 8px 8px 0;
+      border: 1px solid #dcd3c0;
+      border-left: none;
+      box-shadow:
+        inset 42px 0 58px -18px rgba(24, 18, 10, 0.28),
+        inset 8px 0 16px -4px rgba(15, 10, 5, 0.32),
+        inset -18px 0 28px -12px rgba(140, 120, 90, 0.12),
+        inset -1px 0 0 rgba(255, 255, 255, 0.88);
+    }
+    .page-front::before {
+      background:
+        /* Cylindrical spine-to-fore-edge 3D arch lighting */
+        linear-gradient(
+          90deg,
+          rgba(25, 18, 10, 0.22) 0%,
+          rgba(40, 30, 18, 0.07) 7%,
+          rgba(255, 255, 255, 0.55) 24%,
+          rgba(255, 253, 248, 0.15) 62%,
+          rgba(165, 148, 120, 0.12) 94%,
+          rgba(90, 75, 55, 0.18) 100%
+        ),
+        radial-gradient(rgba(160, 140, 105, 0.055) 1px, transparent 0);
+      background-size: 100% 100%, 14px 14px;
+    }
+
+    /* Left-hand Page (Back of Sheet) — Curved cylindrical arch into spine */
+    .page-back {
+      transform: rotateY(180deg);
+      border-radius: 8px 0 0 8px;
+      border: 1px solid #dcd3c0;
+      border-right: none;
+      box-shadow:
+        inset -42px 0 58px -18px rgba(24, 18, 10, 0.28),
+        inset -8px 0 16px -4px rgba(15, 10, 5, 0.32),
+        inset 18px 0 28px -12px rgba(140, 120, 90, 0.12),
+        inset 1px 0 0 rgba(255, 255, 255, 0.88);
+    }
+    .page-back::before {
+      background:
+        /* Cylindrical fore-edge-to-spine 3D arch lighting */
+        linear-gradient(
+          270deg,
+          rgba(25, 18, 10, 0.22) 0%,
+          rgba(40, 30, 18, 0.07) 7%,
+          rgba(255, 255, 255, 0.55) 24%,
+          rgba(255, 253, 248, 0.15) 62%,
+          rgba(165, 148, 120, 0.12) 94%,
+          rgba(90, 75, 55, 0.18) 100%
+        ),
+        radial-gradient(rgba(160, 140, 105, 0.055) 1px, transparent 0);
+      background-size: 100% 100%, 14px 14px;
+    }
+
+    /* Moving Specular Light & Bend Shadow on the actively turning sheet */
+    .page-curl-lighting {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 25;
+      transition: opacity 0.15s ease;
+    }
+
+    /* Interactive 3D Corner Peel Fold Effect */
+    .corner-peel-fold {
+      position: absolute;
+      bottom: 0;
+      width: 58px;
+      height: 58px;
+      pointer-events: none;
+      z-index: 30;
+      transition: all 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+      opacity: 0.45;
+    }
+    .page-front .corner-peel-fold {
+      right: 0;
+      background: linear-gradient(135deg, transparent 48%, rgba(0,0,0,0.12) 50%, #f5efe2 52%, #e2d8c3 100%);
+      border-top-left-radius: 10px;
+      box-shadow: -3px -3px 8px rgba(0, 0, 0, 0.12);
+      transform-origin: bottom right;
+      transform: scale(0.38);
+    }
+    .page-back .corner-peel-fold {
+      left: 0;
+      background: linear-gradient(225deg, transparent 48%, rgba(0,0,0,0.12) 50%, #f5efe2 52%, #e2d8c3 100%);
+      border-top-right-radius: 10px;
+      box-shadow: 3px -3px 8px rgba(0, 0, 0, 0.12);
+      transform-origin: bottom left;
+      transform: scale(0.38);
+    }
+
+    .sheet:not(.flipped):hover .page-front .corner-peel-fold {
+      opacity: 1;
+      transform: scale(1);
+      box-shadow: -8px -8px 18px rgba(0, 0, 0, 0.24);
+    }
+    .sheet.flipped:hover .page-back .corner-peel-fold {
+      opacity: 1;
+      transform: scale(1);
+      box-shadow: 8px -8px 18px rgba(0, 0, 0, 0.24);
+    }
+
+    /* Page Content Styling (Book Typography) */
+    .book-page-inner {
+      position: relative;
+      z-index: 5;
+      width: 100%;
+      height: 100%;
+      padding: 20px 28px 18px 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: #1e293b;
+      font-size: 11.4px;
+      line-height: 1.48;
+      user-select: text;
+    }
+
+    .page-front .book-page-inner {
+      padding-left: 36px;
+      padding-right: 26px;
+    }
+    .page-back .book-page-inner {
+      padding-left: 26px;
+      padding-right: 36px;
+    }
+
+    .running-header {
+      font-family: 'Inter', sans-serif;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: #64748b;
+      border-bottom: 1px solid #e2dcd0;
+      padding-bottom: 5px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .running-footer {
+      font-family: 'Inter', sans-serif;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      border-top: 1px solid #e2dcd0;
+      padding-top: 6px;
+      margin-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .chapter-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+      margin: 2px 0 6px 0;
+      line-height: 1.2;
+    }
+
+    .chapter-num {
+      color: #0066eb;
+      margin-right: 5px;
+    }
+
+    .section-heading {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 12.2px;
+      font-weight: 700;
+      color: #1d4ed8;
+      margin: 7px 0 3px 0;
+      line-height: 1.25;
+    }
+
+    .book-prose {
+      font-family: 'Libre Baskerville', Georgia, serif;
+      font-size: 10.6px;
+      line-height: 1.48;
+      color: #273244;
+      margin-bottom: 5px;
+    }
+
+    /* SQL Code Block in Book */
+    .sql-block-wrap {
+      margin: 5px 0;
+      border-radius: 5px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+      background: #0b1324;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.14);
+    }
+
+    .sql-block-label {
+      background: #131f38;
+      color: #60a5fa;
+      font-family: 'Inter', sans-serif;
+      font-size: 8.2px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .sql-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9.7px;
+      line-height: 1.4;
+      color: #f1f5f9;
+      padding: 6px 9px;
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .sql-kw { color: #38bdf8; font-weight: 600; }
+    .sql-str { color: #fde047; }
+    .sql-num { color: #f472b6; }
+    .sql-comment { color: #64748b; font-style: italic; }
+
+    /* Book Tables */
+    .book-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 5px 0;
+      font-family: 'Inter', sans-serif;
+      font-size: 9.6px;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .book-table th {
+      background: #e9eff8;
+      color: #0f172a;
+      font-weight: 700;
+      text-align: left;
+      padding: 4px 6px;
+      border-bottom: 1px solid #cbd5e1;
+    }
+    .book-table td {
+      padding: 3.5px 6px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #1e293b;
+      vertical-align: top;
+    }
+    .book-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Callout Banner in Book */
+    .book-callout {
+      margin: 5px 0;
+      padding: 5.5px 8px;
+      border-left: 3px solid #0077ff;
+      background: #eff6ff;
+      border-radius: 0 4px 4px 0;
+      font-family: 'Inter', sans-serif;
+      font-size: 9.6px;
+      line-height: 1.38;
+      color: #1e3a8a;
+    }
+    .book-callout.warn {
+      border-left-color: #d97706;
+      background: #fffbeb;
+      color: #78350f;
+    }
+    .book-callout-tag {
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-right: 4px;
+    }
+
+    /* Corner Curl Indicator */
+    .corner-curl-hint {
+      position: absolute;
+      bottom: 10px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(0, 119, 255, 0.1);
+      color: #0077ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: all 0.25s ease;
+      pointer-events: none;
+      z-index: 15;
+    }
+    .page-front .corner-curl-hint { right: 10px; }
+    .page-back .corner-curl-hint { left: 10px; }
+
+    /* Custom Range Slider */
+    input[type="range"].book-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(255, 255, 255, 0.18);
+      height: 5px;
+      border-radius: 999px;
+      outline: none;
+    }
+    input[type="range"].book-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid #0077ff;
+      box-shadow: 0 0 10px rgba(0, 119, 255, 0.8);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    input[type="range"].book-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    /* Scrollbar inside modals */
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.4);
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.35);
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Studio Background & Bokeh Canvas -->
+  <div class="studio-backdrop"></div>
+  <canvas id="bokehCanvas" class="fixed inset-0 pointer-events-none z-[2]"></canvas>
+  <div class="desk-surface"></div>
+
+  <!-- TOP FLOATING BAR (Matches 3dbook UI - Hidden in Book-Only Fullscreen) -->
+  <header id="topHeaderBar" class="ui-chrome fixed top-4 left-0 right-0 px-4 sm:px-8 flex items-center justify-between z-40 pointer-events-none">
+    <!-- Left: Brand -->
+    <div class="flex items-center gap-3 pointer-events-auto">
+      <div class="flex items-center gap-1.5 select-none">
+        <span class="text-xl font-extrabold tracking-tight">
+          <span class="text-indigo-400">3d</span><span class="text-white">book</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Right: Action Buttons -->
+    <div class="flex items-center gap-2.5 pointer-events-auto">
+      <button id="fullscreenBtn" title="Book-Only Fullscreen View (Press F or Esc)" class="glass-btn w-10 h-10 rounded-full flex items-center justify-center text-slate-200">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- LEFT / RIGHT FLOATING NAVIGATION ARROWS (Hidden in Book-Only Fullscreen) -->
+  <button id="sidePrevBtn" title="Previous Page (Left Arrow)" class="ui-chrome fixed left-3 sm:left-6 top-1/2 -translate-y-1/2 z-30 glass-btn w-12 h-12 rounded-full flex items-center justify-center text-white">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+    </svg>
+  </button>
+
+  <button id="sideNextBtn" title="Next Page (Right Arrow)" class="ui-chrome fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 z-30 glass-btn w-12 h-12 rounded-full flex items-center justify-center text-white">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+    </svg>
+  </button>
+
+  <!-- MAIN 3D BOOK STAGE (The ONLY element visible in Fullscreen View) -->
+  <main class="book-viewport" id="bookViewport">
+    <div class="book-scaler" id="bookScaler">
+      <div class="book-parallax-rig" id="bookParallaxRig">
+        <div class="book-scene" id="bookScene">
+          <!-- Soft Floor Shadow -->
+          <div class="book-floor-shadow" id="bookFloorShadow"></div>
+          <!-- Hardcover Binding Base -->
+          <div class="hardcover-base" id="hardcoverBase"></div>
+          <!-- Center Spine Hinge -->
+          <div class="book-spine-hinge" id="bookSpineHinge"></div>
+          <!-- Left & Right Layered Paper Stacks -->
+          <div class="paper-stack-left" id="paperStackLeft"></div>
+          <div class="paper-stack-right" id="paperStackRight"></div>
+          <div class="paper-bottom-edge-left" id="paperBottomLeft"></div>
+          <div class="paper-bottom-edge-right" id="paperBottomRight"></div>
+
+          <!-- Center Spine Deep Gutter Shadow Overlay -->
+          <div class="book-gutter-ambient-shadow" id="bookGutterShadow"></div>
+          <!-- Dynamic Cast Shadow swept by turning page -->
+          <div class="dynamic-cast-shadow" id="dynamicCastShadow"></div>
+
+          <!-- 3D Flipping Sheets Injected by JS -->
+          <div id="sheetsContainer" class="relative w-full h-full" style="transform-style: preserve-3d;"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- BOTTOM FLOATING CONTROL BAR (Hidden in Book-Only Fullscreen) -->
+  <footer id="bottomControlBar" class="ui-chrome fixed bottom-4 left-0 right-0 px-4 sm:px-8 flex items-center justify-between gap-4 z-40 pointer-events-none">
+    <!-- Left: Page Counter & Scrubber Slider -->
+    <div class=" flex items-center gap-3 pointer-events-auto flex-1 max-w-md">
+      <div class="glass-pill px-3.5 py-2 rounded-full flex items-center gap-2 shrink-0">
+        <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+        <span id="pageIndicatorText" class="text-xs font-bold font-mono text-white whitespace-nowrap">Front Cover</span>
+      </div>
+      <input id="spreadSlider" type="range" min="0" max="16" value="0" class="book-slider w-full hidden sm:block" title="Scrub through book spreads" />
+    </div>
+
+    <!-- Right: Table of Contents -->
+    <div class="flex items-center justify-end gap-2.5 pointer-events-auto">
+      <button id="tocToggleBtn" title="Table of Contents (22 Chapters)" class="glass-btn w-10 h-10 rounded-full flex items-center justify-center text-slate-200">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+    </div>
+  </footer>
+
+  <!-- TABLE OF CONTENTS DRAWER -->
+  <aside id="tocDrawer" class="fixed top-0 right-0 bottom-0 w-80 sm:w-96 bg-slate-950/95 backdrop-blur-2xl border-l border-white/15 z-50 translate-x-full transition-transform duration-300 flex flex-col shadow-2xl">
+    <div class="p-5 border-b border-white/10 flex items-center justify-between">
+      <div>
+        <h2 class="text-base font-bold text-white">Table of Contents</h2>
+        <p class="text-xs text-slate-400">SQL by sparrowsql • All 29 Pages</p>
+      </div>
+      <button id="closeTocBtn" class="glass-btn w-8 h-8 rounded-full flex items-center justify-center text-slate-300">✕</button>
+    </div>
+
+    <div class="px-5 py-2.5 bg-blue-950/40 border-b border-blue-500/20 flex items-center justify-between text-xs">
+      <span class="text-blue-300 font-medium">Saved Bookmarks:</span>
+      <div id="bookmarksList" class="flex items-center gap-1.5 flex-wrap">
+        <span class="text-slate-500 italic">None yet</span>
+      </div>
+    </div>
+
+    <div id="tocItemsContainer" class="flex-1 overflow-y-auto custom-scroll p-3 space-y-1"></div>
+  </aside>
+
+  <!-- LIVE SQL PLAYGROUND MODAL -->
+  <div id="sqlModal" class="fixed inset-0 bg-black/75 backdrop-blur-md z-50 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-white/15 rounded-2xl w-full max-w-4xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 bg-slate-950 border-b border-white/10 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-mono font-bold">SQL</div>
+          <div>
+            <h3 class="text-sm sm:text-base font-bold text-white">SparrowSQL Interactive Practice Playground</h3>
+            <p class="text-xs text-slate-400">Pre-loaded with <code class="text-blue-300">students</code>, <code class="text-blue-300">products</code>, <code class="text-blue-300">customers</code>, <code class="text-blue-300">orders</code>, <code class="text-blue-300">members</code>, <code class="text-blue-300">books</code>, <code class="text-blue-300">loans</code>, <code class="text-blue-300">tasks</code> & more</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="sendToMainLabBtn" class="px-3 py-1.5 rounded-lg bg-blue-600/25 hover:bg-blue-600/45 text-xs font-semibold text-blue-200 border border-blue-400/30 transition">Open in Main Live Lab ↓</button>
+          <button id="resetDbBtn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-white/10 transition">Reset Practice Data</button>
+          <button id="closeSqlModalBtn" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center">✕</button>
+        </div>
+      </div>
+
+      <!-- Preset Quick Table Buttons -->
+      <div class="px-6 py-2.5 bg-slate-900/90 border-b border-white/10 flex items-center gap-2 overflow-x-auto text-xs">
+        <span class="text-slate-400 font-medium shrink-0">Quick Inspect:</span>
+        <button data-quick-sql="SELECT * FROM students;" class="quick-sql-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-blue-600/30 text-blue-300 border border-white/10 shrink-0">students</button>
+        <button data-quick-sql="SELECT * FROM products;" class="quick-sql-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-blue-600/30 text-blue-300 border border-white/10 shrink-0">products</button>
+        <button data-quick-sql="SELECT c.customer_name, o.product FROM customers AS c LEFT JOIN orders AS o ON c.customer_id = o.customer_id;" class="quick-sql-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-blue-600/30 text-blue-300 border border-white/10 shrink-0">customers + orders</button>
+        <button data-quick-sql="SELECT m.member_name, b.title, l.loan_date, l.returned_date FROM loans AS l INNER JOIN members AS m ON m.member_id = l.member_id INNER JOIN books AS b ON b.book_id = l.book_id ORDER BY l.loan_date;" class="quick-sql-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-blue-600/30 text-blue-300 border border-white/10 shrink-0">library capstone</button>
+        <button data-quick-sql="SELECT * FROM tasks;" class="quick-sql-btn px-2.5 py-1 rounded bg-slate-800 hover:bg-blue-600/30 text-blue-300 border border-white/10 shrink-0">tasks</button>
+      </div>
+
+      <!-- Editor & Output Body -->
+      <div class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 overflow-y-auto custom-scroll">
+        <div class="lg:col-span-5 flex flex-col gap-3">
+          <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+            <span>SQL Query Editor</span>
+            <span class="text-[11px] text-emerald-400 font-normal">Write → Predict → Run</span>
+          </label>
+          <textarea id="sqlEditorInput" rows="8" class="w-full flex-1 bg-slate-950 border border-slate-700 focus:border-blue-500 rounded-xl p-3.5 font-mono text-xs sm:text-sm text-blue-100 outline-none resize-none" spellcheck="false">SELECT full_name, city, marks
+FROM students
+WHERE marks >= 85
+ORDER BY marks DESC;</textarea>
+          <div class="flex items-center gap-2">
+            <button id="executeSqlBtn" class="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs sm:text-sm shadow-lg shadow-blue-600/30 transition flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+              Run SQL Query
+            </button>
+            <button id="copyEditorSqlBtn" class="py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-white/10 transition">Copy</button>
+          </div>
+        </div>
+
+        <div class="lg:col-span-7 flex flex-col gap-3">
+          <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+            <span>Query Result</span>
+            <span id="sqlStatusBadge" class="text-[11px] text-slate-400 font-normal">Ready</span>
+          </div>
+          <div id="sqlOutputContainer" class="flex-1 min-h-[220px] bg-slate-950 border border-slate-800 rounded-xl p-4 overflow-auto custom-scroll text-xs"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toastNotice" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full glass-pill text-xs font-semibold text-white opacity-0 pointer-events-none transition-opacity duration-300">
+    Copied SQL to clipboard!
+  </div>
+
+  <script>
+    /********************************************************************
+     * 1. COMPLETE BOOK DATA — ALL 29 PAGES OF "SQL BY SPARROWSQL"
+     *    Plus Front Cover (COMPLETE SQL), Inside Bookplate, and Back Cover
+     ********************************************************************/
+
+    // Helper for syntax-highlighted SQL blocks with Copy + Run buttons
+    function sqlBlock(label, rawSql) {
+      const escapedAttr = rawSql.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const highlighted = rawSql
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/(--.*)/g, '<span class="sql-comment">$1</span>')
+        .replace(/('[^']*')/g, '<span class="sql-str">$1</span>')
+        .replace(/\b(SELECT|FROM|WHERE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|DATABASE|IF|NOT|EXISTS|USE|DROP|ALTER|ADD|COLUMN|RENAME|TO|TRUNCATE|PRIMARY|KEY|FOREIGN|REFERENCES|UNIQUE|DEFAULT|CHECK|INTEGER|REAL|TEXT|BLOB|NUMERIC|DECIMAL|DATE|TIME|AS|AND|OR|IN|BETWEEN|LIKE|IS|NULL|DISTINCT|ORDER|BY|ASC|DESC|LIMIT|OFFSET|COUNT|SUM|AVG|MAX|MIN|GROUP|HAVING|INNER|LEFT|RIGHT|FULL|OUTER|CROSS|JOIN|ON|UNION|ALL|INTERSECT|EXCEPT|VIEW|INDEX|BEGIN|START|TRANSACTION|COMMIT|ROLLBACK|SAVEPOINT|PRAGMA|GRANT|REVOKE)\b/g, '<span class="sql-kw">$1</span>');
+
+      return `
+        <div class="sql-block-wrap" onclick="event.stopPropagation()">
+          <div class="sql-block-label">
+            <span>${label}</span>
+            <span class="flex items-center gap-1.5">
+              <button type="button" data-copy-sql="${escapedAttr}" class="copy-sql-btn px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[8px] text-slate-200 transition">Copy</button>
+              <button type="button" data-run-sql="${escapedAttr}" class="run-sql-btn px-1.5 py-0.5 rounded bg-blue-600/80 hover:bg-blue-500 text-[8px] text-white transition">▶ Run</button>
+            </span>
+          </div>
+          <pre class="sql-code">${highlighted}</pre>
+        </div>
+      `;
+    }
+
+    // Exact Front Cover recreation matching the user's "COMPLETE SQL" cover image
+    const frontCoverHTML = `
+      <div class="w-full h-full bg-[#fafaf8] text-[#111827] flex flex-col justify-between px-9 py-8 relative select-none" style="border-radius: 0 7px 7px 0; box-shadow: inset 14px 0 24px -10px rgba(0,0,0,0.22), inset -2px 0 4px rgba(0,0,0,0.08);">
+        <!-- Subtle Spine Crease Line on Left of Front Cover -->
+        <div class="absolute top-0 bottom-0 left-3.5 w-[2px] bg-gradient-to-b from-black/10 via-black/15 to-black/10"></div>
+
+        <!-- Top Pill Track -->
+        <div class="text-center pt-2">
+          <div class="text-[10.5px] font-semibold tracking-[0.28em] text-slate-600 uppercase">
+            LEARN <span class="mx-2 text-slate-400">•</span> PRACTICE <span class="mx-2 text-slate-400">•</span> BUILD
+          </div>
+        </div>
+
+        <!-- Main Title Block -->
+        <div class="text-center my-1">
+          <div class="text-[36px] font-bold tracking-[0.22em] text-[#141821] leading-none mb-1 pl-2" style="font-family: 'Plus Jakarta Sans', sans-serif;">
+            COMPLETE
+          </div>
+          <!-- Giant SQL Logo where Q is vibrant blue with diagonal slash -->
+          <div class="flex items-center justify-center leading-none select-none my-1">
+            <svg viewBox="0 0 330 125" class="w-[275px] h-auto">
+              <!-- S -->
+              <path d="M76 31 C68 21, 55 17, 40 17 C19 17, 6 28, 6 44 C6 61, 20 68, 42 72 C58 75, 65 79, 65 88 C65 98, 54 104, 39 104 C24 104, 14 98, 7 88 L-4 101 C6 114, 21 121, 40 121 C66 121, 84 108, 84 87 C84 68, 69 60, 46 56 C30 53, 25 49, 25 42 C25 35, 32 31, 42 31 C53 31, 61 35, 67 42 Z" transform="translate(12,0)" fill="#181c24"/>
+              <!-- Q (Electric Blue Circle + Geometric Slash) -->
+              <g transform="translate(108, 0)">
+                <path d="M56 14 C25 14, 2 37, 2 68 C2 99, 25 122, 56 122 C66 122, 76 119, 84 115 L71 101 C66 103, 61 104, 56 104 C35 104, 21 89, 21 68 C21 47, 35 32, 56 32 C77 32, 91 47, 91 68 C91 77, 88 85, 83 91 L97 105 C105 95, 110 82, 110 68 C110 37, 87 14, 56 14 Z" fill="#0077ff"/>
+                <!-- Bold Diagonal Tail Slash of Q -->
+                <polygon points="56,74 71,60 115,121 92,121" fill="#0077ff"/>
+              </g>
+              <!-- L -->
+              <path d="M238 17 L258 17 L258 102 L308 102 L308 120 L238 120 Z" fill="#181c24"/>
+            </svg>
+          </div>
+
+          <p class="text-[13.5px] text-slate-600 font-normal leading-relaxed mt-2 tracking-wide">
+            From Basics to Advanced<br/>
+            Queries and Real-World Projects
+          </p>
+        </div>
+
+        <!-- Center Database + Code Card Illustration -->
+        <div class="relative flex items-center justify-center my-2 h-[185px]">
+          <!-- Soft Blue Circle Backdrop -->
+          <div class="w-32 h-32 rounded-full bg-[#eef5ff] absolute translate-x-6 -translate-y-4"></div>
+
+          <!-- 3D Dark Cylinder Database Stack -->
+          <div class="relative z-10 -translate-x-12">
+            <svg viewBox="0 0 130 155" class="w-32 h-auto drop-shadow-md">
+              <!-- Top Cap -->
+              <ellipse cx="65" cy="24" rx="54" ry="18" fill="#181e29"/>
+              <!-- Tier 1 Body -->
+              <path d="M11 28 C11 39, 35 46, 65 46 C95 46, 119 39, 119 28 L119 58 C119 69, 95 76, 65 76 C35 76, 11 69, 11 58 Z" fill="#181e29"/>
+              <!-- Tier 2 Body -->
+              <path d="M11 63 C11 74, 35 81, 65 81 C95 81, 119 74, 119 63 L119 93 C119 104, 95 111, 65 111 C35 111, 11 104, 11 93 Z" fill="#181e29"/>
+              <!-- Tier 3 Body -->
+              <path d="M11 98 C11 109, 35 116, 65 116 C95 116, 119 109, 119 98 L119 128 C119 139, 95 146, 65 146 C35 146, 11 139, 11 128 Z" fill="#181e29"/>
+            </svg>
+          </div>
+
+          <!-- Floating White SQL Query Card -->
+          <div class="relative z-20 -ml-8 mt-10 bg-white rounded-xl px-4 py-3.5 border border-slate-100 shadow-[0_14px_30px_rgba(0,119,255,0.13)] w-[165px]">
+            <div class="flex items-center gap-1.5 mb-2">
+              <span class="w-2 h-2 rounded-full bg-[#0077ff]"></span>
+              <span class="w-2 h-2 rounded-full bg-[#0077ff]"></span>
+              <span class="w-2 h-2 rounded-full bg-[#0077ff]"></span>
+            </div>
+            <div class="font-mono text-[11.5px] leading-snug text-slate-800">
+              <div><span class="text-[#0077ff] font-semibold">SELECT</span> *</div>
+              <div><span class="text-[#0077ff] font-semibold">FROM</span> users</div>
+              <div><span class="text-[#0077ff] font-semibold">WHERE</span> id = 1;</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom 4-Column Feature Icons Row -->
+        <div class="pt-3 border-t border-slate-200/80 grid grid-cols-4 divide-x divide-slate-200 text-center">
+          <!-- Queries -->
+          <div class="px-1 flex flex-col items-center">
+            <svg class="w-6 h-6 mb-1.5" viewBox="0 0 24 24" fill="none" stroke="#181e29" stroke-width="1.8">
+              <ellipse cx="12" cy="6" rx="7" ry="3"/>
+              <path d="M5 6v6c0 1.66 3.13 3 7 3s7-1.34 7-3V6" stroke="#0077ff"/>
+              <path d="M5 12v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6"/>
+            </svg>
+            <span class="text-[8.5px] font-semibold tracking-[0.14em] text-slate-700">QUERIES</span>
+          </div>
+          <!-- Functions -->
+          <div class="px-1 flex flex-col items-center">
+            <svg class="w-6 h-6 mb-1.5" viewBox="0 0 24 24" fill="none" stroke="#0077ff" stroke-width="1.8">
+              <rect x="4" y="13" width="3.5" height="6" rx="0.5"/>
+              <rect x="10.25" y="9" width="3.5" height="10" rx="0.5"/>
+              <rect x="16.5" y="5" width="3.5" height="14" rx="0.5"/>
+            </svg>
+            <span class="text-[8.5px] font-semibold tracking-[0.14em] text-slate-700">FUNCTIONS</span>
+          </div>
+          <!-- Joins -->
+          <div class="px-1 flex flex-col items-center">
+            <svg class="w-6 h-6 mb-1.5" viewBox="0 0 24 24" fill="none" stroke="#181e29" stroke-width="1.7">
+              <circle cx="12" cy="12" r="3.2"/>
+              <path stroke-linecap="round" d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/>
+            </svg>
+            <span class="text-[8.5px] font-semibold tracking-[0.14em] text-slate-700">JOINS</span>
+          </div>
+          <!-- Real-World Examples -->
+          <div class="px-1 flex flex-col items-center">
+            <svg class="w-6 h-6 mb-1.5" viewBox="0 0 24 24" fill="none" stroke="#181e29" stroke-width="1.8">
+              <rect x="5" y="3.5" width="14" height="17" rx="2"/>
+              <path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4.5" stroke="#0077ff" stroke-linecap="round"/>
+            </svg>
+            <span class="text-[8px] font-semibold tracking-[0.11em] text-slate-700 leading-tight">REAL-WORLD<br/>EXAMPLES</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Array of all 30 interior pages (Pages 1 to 29 from PDF + Page 30 Colophon/Lab)
+    const bookPages = [
+      // PAGE 1: Title Page
+      {
+        pageNumber: 1,
+        title: "Title Page — SQL by sparrowsql",
+        content: `
+          <div class="flex-1 flex flex-col justify-between py-2">
+            <div>
+              <span class="inline-block px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 font-semibold text-[10px] mb-3">sparrowsql</span>
+              <div class="text-[9.5px] font-bold tracking-[0.14em] text-blue-700 uppercase mb-2">SQL BY SPARROWSQL / A PRACTICAL FIELD GUIDE</div>
+              <h1 class="text-[28px] font-black text-slate-900 leading-[1.08] tracking-tight mb-3" style="font-family:'Plus Jakarta Sans',sans-serif;">
+                SQL<br/>
+                <span class="text-[22px] font-extrabold text-slate-800">FROM FIRST QUERY TO REAL PROJECTS</span>
+              </h1>
+              <p class="book-prose text-[11.5px] text-slate-600">
+                A hands-on guide to databases, queries, relationships, and useful data thinking.
+              </p>
+            </div>
+
+            <div class="my-4 p-4 rounded-xl bg-white/80 border border-slate-200 shadow-sm space-y-2">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Edition</span>
+                <span class="text-xs font-bold text-slate-800">SQL BY SPARROWSQL</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Author & Teacher</span>
+                <span class="text-xs font-semibold text-blue-700">Teacher: sparrowsql</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div class="p-2.5 rounded-lg bg-slate-900 text-white text-center font-bold text-[10px] tracking-widest">LEARN</div>
+              <div class="p-2.5 rounded-lg bg-blue-700 text-white text-center font-bold text-[10px] tracking-widest">WRITE</div>
+              <div class="p-2.5 rounded-lg bg-blue-700 text-white text-center font-bold text-[10px] tracking-widest">RUN</div>
+              <div class="p-2.5 rounded-lg bg-slate-900 text-white text-center font-bold text-[10px] tracking-widest">UNDERSTAND</div>
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 2: Welcome to SQL
+      {
+        pageNumber: 2,
+        title: "Welcome to SQL",
+        content: `
+          <div>
+            <h2 class="chapter-title">Welcome to SQL</h2>
+            <p class="book-prose">
+              SQL is how we ask a relational database to store, find, combine, and change information. You do not need to memorise every command before you begin. Learn a small idea, run a query, inspect the result, and then change one thing at a time.
+            </p>
+            <div class="book-callout">
+              <span class="book-callout-tag">THE SPARROWSQL METHOD</span>
+              Write a query. Predict the result. Run it. Compare what happened with what you expected.
+            </div>
+
+            <h3 class="section-heading">What this book teaches</h3>
+            <ul class="list-disc pl-4 space-y-0.5 text-[10px] text-slate-700 font-serif mb-2">
+              <li>Understand databases, tables, rows, columns, data types, keys, and constraints.</li>
+              <li>Create tables and work with data using <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, and <code>DELETE</code>.</li>
+              <li>Filter, sort, group, and summarise information with practical queries.</li>
+              <li>Combine tables with joins; combine result sets with set operators.</li>
+              <li>Use subqueries, views, indexes, and transactions with a clear mental model.</li>
+              <li>Build a small library database and solve a final set of SQL challenges.</li>
+            </ul>
+
+            <h3 class="section-heading">Which SQL dialect do we use?</h3>
+            <p class="book-prose">
+              The examples use SQLite-friendly SQL wherever possible, which works well in an in-browser playground. SQL is a language family: MySQL, PostgreSQL, SQL Server, and SQLite share many ideas but differ in some syntax, data types, administrative commands, and features. Notes marked <strong>"Dialect note"</strong> point out important differences.
+            </p>
+
+            <div class="book-callout warn">
+              <span class="book-callout-tag">SAFE PRACTICE</span>
+              Run destructive commands such as UPDATE, DELETE, DROP, and table-altering statements only on practice data until you understand their effect.
+            </div>
+
+            <h3 class="section-heading">A quick reading key</h3>
+            <table class="book-table">
+              <thead><tr><th>Style</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><strong>SQL code blocks</strong></td><td>Commands you can copy into a SQL editor.</td></tr>
+                <tr><td><strong>Example / Expected result</strong></td><td>A worked example and the sort of output to expect.</td></tr>
+                <tr><td><strong>Remember</strong></td><td>A rule or distinction worth keeping in mind.</td></tr>
+                <tr><td><strong>Try it</strong></td><td>A short exercise to check your understanding.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        `
+      },
+
+      // PAGE 3: Contents
+      {
+        pageNumber: 3,
+        title: "Contents",
+        content: `
+          <div>
+            <h2 class="chapter-title">Contents</h2>
+            <p class="text-[9.5px] text-slate-500 mb-1.5 italic">Click any chapter below to flip directly to its page:</p>
+            <table class="book-table text-[9.2px]">
+              <thead><tr><th class="w-14">Chapter</th><th>Topic</th><th class="w-10 text-right">Page</th></tr></thead>
+              <tbody>
+                ${[
+                  ["01", "Databases and SQL", 4],
+                  ["02", "Tables, rows, columns, and data types", 5],
+                  ["03", "SQL command families", 6],
+                  ["04", "Create a database and tables", 7],
+                  ["05", "Keys and constraints", 8],
+                  ["06", "Insert and read data", 9],
+                  ["07", "Filtering with WHERE", 10],
+                  ["08", "Patterns, NULL, DISTINCT, and aliases", 11],
+                  ["09", "Sorting and limiting results", 12],
+                  ["10", "Aggregate functions", 13],
+                  ["11", "GROUP BY and HAVING", 14],
+                  ["12", "Update and delete safely", 15],
+                  ["13", "Changing table structures", 16],
+                  ["14", "Joins: connect related tables", 17],
+                  ["15", "Set operations", 19],
+                  ["16", "Subqueries", 21],
+                  ["17", "Views and indexes", 22],
+                  ["18", "Transactions and permissions", 23],
+                  ["19", "Design habits and debugging", 24],
+                  ["20", "Capstone: a tiny library database", 25],
+                  ["21", "Practice set with solutions", 27],
+                  ["22", "SQL quick reference and glossary", 29]
+                ].map(([ch, topic, pg]) => `
+                  <tr class="hover:bg-blue-50/90 cursor-pointer transition" onclick="event.stopPropagation(); window.goToBookPage(${pg});">
+                    <td class="font-bold text-blue-700">${ch}</td>
+                    <td class="font-medium text-slate-800">${topic}</td>
+                    <td class="text-right text-slate-500 font-mono">${pg}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <p class="book-prose text-[9.6px] mt-1.5">
+              The chapters are ordered as a learning path. If a query looks unfamiliar, return to the earlier chapter that introduces the clause or concept used in it.
+            </p>
+          </div>
+        `
+      },
+
+      // PAGE 4: 01 Databases and SQL
+      {
+        pageNumber: 4,
+        title: "01 Databases and SQL",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">01</span>Databases and SQL</h2>
+            <p class="book-prose">
+              A database is an organised collection of data. A database management system (DBMS) is the software that stores, retrieves, secures, and manages that data.
+            </p>
+
+            <h3 class="section-heading">The main building blocks</h3>
+            <ul class="list-disc pl-4 space-y-0.5 text-[10px] text-slate-700 font-serif mb-2">
+              <li><strong>Database:</strong> the organised collection as a whole.</li>
+              <li><strong>Table:</strong> a set of related records, arranged in rows and columns.</li>
+              <li><strong>Row (record):</strong> one item, such as one student or one order.</li>
+              <li><strong>Column (field):</strong> one attribute, such as name, email, or price.</li>
+              <li><strong>DBMS:</strong> software that manages databases. Examples include SQLite, MySQL, PostgreSQL, and SQL Server.</li>
+              <li><strong>RDBMS:</strong> a DBMS that organises data into related tables.</li>
+            </ul>
+
+            <h3 class="section-heading">What is SQL?</h3>
+            <p class="book-prose">
+              SQL stands for Structured Query Language. It is used to define data structures and read or change data in relational databases. SQL is not itself a database. SQLite and MySQL are database systems; SQL is the language used to communicate with them.
+            </p>
+
+            <h3 class="section-heading">CRUD in plain language</h3>
+            <table class="book-table">
+              <thead><tr><th>Letter</th><th>Meaning</th><th>Typical SQL</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Create</strong></td><td>Add a table or record</td><td><code>CREATE</code>, <code>INSERT</code></td></tr>
+                <tr><td><strong>Read</strong></td><td>Retrieve stored data</td><td><code>SELECT</code></td></tr>
+                <tr><td><strong>Update</strong></td><td>Change existing data</td><td><code>UPDATE</code></td></tr>
+                <tr><td><strong>Delete</strong></td><td>Remove data</td><td><code>DELETE</code>, <code>DROP</code></td></tr>
+              </tbody>
+            </table>
+
+            <div class="book-callout">
+              <span class="book-callout-tag">REMEMBER</span>
+              SQL keywords are commonly written in uppercase for readability. In most SQL systems, SELECT and select mean the same thing. Text values are still quoted.
+            </div>
+
+            <h3 class="section-heading">First query</h3>
+            ${sqlBlock("TRY A SIMPLE EXPRESSION", "SELECT 2 + 3 AS total;")}
+            <p class="book-prose">
+              This asks the database to calculate 2 + 3 and label the result column <code>total</code>. You can practise expressions before any table exists.
+            </p>
+          </div>
+        `
+      },
+
+      // PAGE 5: 02 Tables, rows, columns, and data types
+      {
+        pageNumber: 5,
+        title: "02 Tables, rows, columns, and data types",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">02</span>Tables, rows, columns, and data types</h2>
+            <p class="book-prose">
+              A table is useful when each row follows the same structure. Data types tell the database what kind of value a column is intended to store.
+            </p>
+
+            <h3 class="section-heading">Common data types</h3>
+            <table class="book-table">
+              <thead><tr><th>Type</th><th>Typical use</th><th>Example</th></tr></thead>
+              <tbody>
+                <tr><td><strong>INTEGER</strong></td><td>Whole numbers and IDs</td><td><code>42</code></td></tr>
+                <tr><td><strong>REAL</strong></td><td>Approximate decimal numbers</td><td><code>19.95</code></td></tr>
+                <tr><td><strong>TEXT</strong></td><td>Names, labels, and descriptions</td><td><code>'Mira Patel'</code></td></tr>
+                <tr><td><strong>BLOB</strong></td><td>Binary data such as bytes</td><td>image/file bytes</td></tr>
+                <tr><td><strong>NUMERIC / DECIMAL</strong></td><td>Exact decimal values in systems that support it well</td><td><code>125.50</code></td></tr>
+                <tr><td><strong>DATE / TIME</strong></td><td>Date or time values; exact support varies</td><td><code>2026-10-24</code></td></tr>
+              </tbody>
+            </table>
+
+            <p class="book-prose">
+              Type names and storage rules vary by database. SQLite uses flexible typing and commonly stores dates as ISO-style text, numeric values, or Unix timestamps. MySQL has dedicated types such as DATE, TIME, DECIMAL, and VARCHAR.
+            </p>
+
+            <h3 class="section-heading">CHAR and VARCHAR</h3>
+            <p class="book-prose">
+              In systems with these types, CHAR is designed for fixed-length text and VARCHAR for variable-length text with a declared limit. Exact storage behaviour is database-specific; choose types based on the data and the system you are using.
+            </p>
+
+            <h3 class="section-heading">Signed and unsigned numbers</h3>
+            <p class="book-prose">
+              A signed integer can represent negative and positive values. Some systems support UNSIGNED numeric types, which exclude negatives and expand the non-negative range. SQLite does not use UNSIGNED as a normal column type declaration.
+            </p>
+
+            <div class="book-callout">
+              <span class="book-callout-tag">DESIGN TIP</span>
+              Choose a type that matches the meaning of the data. A price, a date, a name, and a count are not interchangeable.
+            </div>
+
+            <h3 class="section-heading">Example table</h3>
+            ${sqlBlock("SQLITE-FRIENDLY EXAMPLE", `CREATE TABLE IF NOT EXISTS products (\n  product_id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL,\n  price REAL NOT NULL,\n  stock INTEGER NOT NULL DEFAULT 0\n);`)}
+          </div>
+        `
+      },
+
+      // PAGE 6: 03 SQL command families
+      {
+        pageNumber: 6,
+        title: "03 SQL command families",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">03</span>SQL command families</h2>
+            <p class="book-prose">
+              Command families describe the kind of work a statement performs. The categories are a useful map, not a substitute for understanding the command itself.
+            </p>
+
+            <table class="book-table">
+              <thead><tr><th>Family</th><th>Purpose</th><th>Examples</th></tr></thead>
+              <tbody>
+                <tr><td><strong>DDL</strong> — Data Definition Language</td><td>Define or change structures</td><td><code>CREATE, ALTER, DROP, TRUNCATE</code></td></tr>
+                <tr><td><strong>DQL</strong> — Data Query Language</td><td>Retrieve rows</td><td><code>SELECT</code></td></tr>
+                <tr><td><strong>DML</strong> — Data Manipulation Language</td><td>Insert, change, or remove records</td><td><code>INSERT, UPDATE, DELETE</code></td></tr>
+                <tr><td><strong>DCL</strong> — Data Control Language</td><td>Manage permissions</td><td><code>GRANT, REVOKE</code></td></tr>
+                <tr><td><strong>TCL</strong> — Transaction Control Language</td><td>Control transactions</td><td><code>BEGIN, COMMIT, ROLLBACK, SAVEPOINT</code></td></tr>
+              </tbody>
+            </table>
+
+            <h3 class="section-heading">A practical way to remember</h3>
+            <ul class="list-disc pl-4 space-y-0.5 text-[9.8px] text-slate-700 font-serif mb-1.5">
+              <li><strong>DDL</strong> changes the shape of the database.</li>
+              <li><strong>DML</strong> changes the contents of tables.</li>
+              <li><strong>DQL</strong> asks questions of stored data.</li>
+              <li><strong>DCL</strong> controls who may do what.</li>
+              <li><strong>TCL</strong> controls whether a group of changes is saved or undone.</li>
+            </ul>
+
+            <h3 class="section-heading">Examples</h3>
+            ${sqlBlock("CREATE A STRUCTURE", "CREATE TABLE IF NOT EXISTS notes (note_id INTEGER PRIMARY KEY, body TEXT);")}
+            ${sqlBlock("READ DATA", "SELECT note_id, body FROM notes;")}
+            ${sqlBlock("CHANGE DATA", "UPDATE notes SET body = 'Revise joins' WHERE note_id = 1;")}
+
+            <h3 class="section-heading">Permissions in server databases</h3>
+            <p class="book-prose">
+              Some server databases support GRANT and REVOKE to manage access to tables and other objects. SQLite does not use this same SQL user-and-grant model.
+            </p>
+            ${sqlBlock("ILLUSTRATIVE SERVER SQL — SYNTAX VARIES", "GRANT SELECT ON employees TO analyst;\nREVOKE SELECT ON employees FROM analyst;")}
+
+            <div class="book-callout">
+              <span class="book-callout-tag">DIALECT NOTE</span>
+              Command support and transaction behaviour vary by database. Check the documentation for the engine and version you are running.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 7: 04 Create a database and tables
+      {
+        pageNumber: 7,
+        title: "04 Create a database and tables",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">04</span>Create a database and tables</h2>
+            <p class="book-prose">
+              Before you query data, you need a structure to hold it. Most learning exercises start by creating one or more tables.
+            </p>
+
+            <h3 class="section-heading">Creating a table</h3>
+            ${sqlBlock("GENERAL PATTERN", `CREATE TABLE table_name (\n  column_name data_type constraint,\n  another_column data_type\n);`)}
+
+            <h3 class="section-heading">A small students table</h3>
+            ${sqlBlock("EXAMPLE", `CREATE TABLE IF NOT EXISTS students (\n  student_id INTEGER PRIMARY KEY,\n  full_name TEXT NOT NULL,\n  city TEXT,\n  marks INTEGER\n);`)}
+
+            <p class="book-prose">
+              The statement creates a table definition. It does not add any student records. Each comma separates a column definition, and the final definition does not need a trailing comma.
+            </p>
+
+            <h3 class="section-heading">Creating a database: dialect difference</h3>
+            <p class="book-prose">
+              SQLite treats a database as a file or an in-memory database opened by your tool. You generally create or open the database in the application, then create tables with SQL.
+            </p>
+            ${sqlBlock("MYSQL EXAMPLE — NOT SQLITE", `CREATE DATABASE IF NOT EXISTS practice_db;\nUSE practice_db;`)}
+
+            <h3 class="section-heading">Inspect your work</h3>
+            ${sqlBlock("SQLITE METADATA", `SELECT name\nFROM sqlite_master\nWHERE type = 'table'\nORDER BY name;`)}
+
+            <div class="book-callout">
+              <span class="book-callout-tag">CHECK YOUR TOOL</span>
+              Commands such as SHOW DATABASES, SHOW TABLES, and USE are associated with MySQL-style workflows and are not universal SQL commands.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 8: 05 Keys and constraints
+      {
+        pageNumber: 8,
+        title: "05 Keys and constraints",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">05</span>Keys and constraints</h2>
+            <p class="book-prose">
+              Constraints are rules the database enforces so that stored data remains meaningful. Keys identify records and connect related tables.
+            </p>
+
+            <h3 class="section-heading">Primary keys</h3>
+            <p class="book-prose">
+              A primary key identifies each row uniquely. It should not be NULL, and a table has one primary-key constraint, though that key may contain multiple columns.
+            </p>
+
+            <h3 class="section-heading">Foreign keys</h3>
+            <p class="book-prose">
+              A foreign key points to a candidate key, commonly the primary key, in another table. It protects relationships between parent and child rows. A table may have multiple foreign keys. Options such as ON DELETE CASCADE or ON UPDATE CASCADE can propagate parent changes to child rows, so use them deliberately.
+            </p>
+
+            <h3 class="section-heading">Common constraints</h3>
+            <table class="book-table">
+              <thead><tr><th>Constraint</th><th>Purpose</th><th>Example</th></tr></thead>
+              <tbody>
+                <tr><td><strong>NOT NULL</strong></td><td>A value is required</td><td><code>name TEXT NOT NULL</code></td></tr>
+                <tr><td><strong>UNIQUE</strong></td><td>Values must not duplicate</td><td><code>email TEXT UNIQUE</code></td></tr>
+                <tr><td><strong>PRIMARY KEY</strong></td><td>Unique row identifier</td><td><code>id INTEGER PRIMARY KEY</code></td></tr>
+                <tr><td><strong>FOREIGN KEY</strong></td><td>Enforce a relationship</td><td><code>FOREIGN KEY (team_id) REFERENCES teams(team_id)</code></td></tr>
+                <tr><td><strong>DEFAULT</strong></td><td>Supply a value when omitted</td><td><code>active INTEGER DEFAULT 1</code></td></tr>
+                <tr><td><strong>CHECK</strong></td><td>Validate a condition</td><td><code>marks INTEGER CHECK (marks BETWEEN 0 AND 100)</code></td></tr>
+              </tbody>
+            </table>
+
+            <h3 class="section-heading">Related tables</h3>
+            ${sqlBlock("A PARENT TABLE AND A CHILD TABLE", `PRAGMA foreign_keys = ON;\nCREATE TABLE IF NOT EXISTS teams (\n  team_id INTEGER PRIMARY KEY,\n  team_name TEXT NOT NULL UNIQUE\n);\nCREATE TABLE IF NOT EXISTS players (\n  player_id INTEGER PRIMARY KEY,\n  player_name TEXT NOT NULL,\n  team_id INTEGER,\n  FOREIGN KEY (team_id) REFERENCES teams(team_id)\n);`)}
+
+            <div class="book-callout warn">
+              <span class="book-callout-tag">IMPORTANT</span>
+              In SQLite, foreign-key enforcement should be enabled for each connection with <code>PRAGMA foreign_keys = ON;</code> Check the settings of your learning environment.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 9: 06 Insert and read data
+      {
+        pageNumber: 9,
+        title: "06 Insert and read data",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">06</span>Insert and read data</h2>
+            <p class="book-prose">
+              INSERT adds rows. SELECT retrieves rows. Practise with a known small dataset so that you can predict what each query should return.
+            </p>
+
+            <h3 class="section-heading">Insert one row</h3>
+            ${sqlBlock("INSERT", `INSERT OR REPLACE INTO students (student_id, full_name, city, marks)\nVALUES (1, 'Asha Rao', 'Pune', 91);`)}
+
+            <h3 class="section-heading">Insert multiple rows</h3>
+            ${sqlBlock("INSERT", `INSERT OR REPLACE INTO students (student_id, full_name, city, marks)\nVALUES\n  (2, 'Kabir Shah', 'Mumbai', 84),\n  (3, 'Meera Das', 'Pune', 96),\n  (4, 'Zoya Khan', 'Nashik', 73);`)}
+
+            <p class="book-prose">
+              Explicitly naming the target columns makes the statement easier to read and safer if the table structure changes. Text values use single quotes; numbers usually do not.
+            </p>
+
+            <h3 class="section-heading">Select specific columns</h3>
+            ${sqlBlock("SELECT", `SELECT full_name, marks\nFROM students;`)}
+
+            <h3 class="section-heading">Select every column</h3>
+            ${sqlBlock("SELECT", `SELECT * FROM students;`)}
+            <p class="book-prose">
+              The asterisk means "all columns." It is handy during exploration, but selecting only the columns you need is usually clearer in reusable queries.
+            </p>
+
+            <h3 class="section-heading">Use aliases</h3>
+            ${sqlBlock("COLUMN ALIASES", `SELECT full_name AS student, marks AS score\nFROM students;`)}
+
+            <div class="book-callout">
+              <span class="book-callout-tag">TRY IT</span>
+              Add a fifth student, then retrieve only the <code>full_name</code> and <code>city</code> columns. Predict how many rows the query should return before running it.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 10: 07 Filtering with WHERE
+      {
+        pageNumber: 10,
+        title: "07 Filtering with WHERE",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">07</span>Filtering with WHERE</h2>
+            <p class="book-prose">
+              WHERE keeps only rows whose condition evaluates to true. It is one of the most frequently used clauses in SQL.
+            </p>
+
+            <h3 class="section-heading">Comparison operators</h3>
+            <table class="book-table">
+              <thead><tr><th>Operator</th><th>Meaning</th><th>Example</th></tr></thead>
+              <tbody>
+                <tr><td><code>=</code></td><td>Equal to</td><td><code>marks = 90</code></td></tr>
+                <tr><td><code>&lt;&gt;</code> or <code>!=</code></td><td>Not equal to</td><td><code>city &lt;&gt; 'Pune'</code></td></tr>
+                <tr><td><code>&gt;</code> / <code>&gt;=</code></td><td>Greater than / at least</td><td><code>marks &gt;= 80</code></td></tr>
+                <tr><td><code>&lt;</code> / <code>&lt;=</code></td><td>Less than / at most</td><td><code>marks &lt; 50</code></td></tr>
+              </tbody>
+            </table>
+
+            <h3 class="section-heading">Basic filtering</h3>
+            ${sqlBlock("WHERE", `SELECT full_name, marks\nFROM students\nWHERE marks >= 85;`)}
+
+            <h3 class="section-heading">Combine conditions</h3>
+            ${sqlBlock("AND, OR, NOT", `SELECT full_name, city, marks\nFROM students\nWHERE city = 'Pune' AND marks >= 90;\n\nSELECT full_name\nFROM students\nWHERE city = 'Pune' OR city = 'Nashik';\n\nSELECT full_name\nFROM students\nWHERE NOT city = 'Mumbai';`)}
+
+            <p class="book-prose">
+              AND requires every joined condition to be true. OR requires at least one. NOT negates a condition. Use parentheses whenever a mixed AND/OR expression could be ambiguous to a reader.
+            </p>
+
+            <h3 class="section-heading">Arithmetic expressions</h3>
+            ${sqlBlock("COMPUTE WHILE FILTERING", `SELECT product_id, name, price\nFROM products\nWHERE price * 1.18 > 500;`)}
+
+            <div class="book-callout">
+              <span class="book-callout-tag">DEBUG TIP</span>
+              If a query returns no rows, check spelling, quote characters, data types, and whether the data actually satisfies every condition.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 11: 08 Patterns, NULL, DISTINCT, and aliases
+      {
+        pageNumber: 11,
+        title: "08 Patterns, NULL, DISTINCT, and aliases",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">08</span>Patterns, NULL, DISTINCT, and aliases</h2>
+            <p class="book-prose">
+              Filtering also includes lists, ranges, patterns, missing values, and duplicate elimination.
+            </p>
+
+            <h3 class="section-heading">IN and BETWEEN</h3>
+            ${sqlBlock("IN AND BETWEEN", `SELECT full_name\nFROM students\nWHERE city IN ('Pune', 'Nashik');\n\nSELECT full_name, marks\nFROM students\nWHERE marks BETWEEN 80 AND 95;`)}
+            <p class="book-prose">
+              BETWEEN is inclusive at both ends. IN is useful when a column may match any value from a list.
+            </p>
+
+            <h3 class="section-heading">LIKE patterns</h3>
+            <table class="book-table">
+              <thead><tr><th>Pattern</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>A%</code></td><td>Starts with A</td></tr>
+                <tr><td><code>%a</code></td><td>Ends with a</td></tr>
+                <tr><td><code>%or%</code></td><td>Contains or</td></tr>
+                <tr><td><code>_a%</code></td><td>Second character is a</td></tr>
+                <tr><td><code>a_%_%</code></td><td>Starts with a and has at least three characters</td></tr>
+              </tbody>
+            </table>
+
+            ${sqlBlock("LIKE EXAMPLES", `SELECT full_name FROM students WHERE full_name LIKE 'M%';\nSELECT full_name FROM students WHERE full_name LIKE '%an%';`)}
+
+            <h3 class="section-heading">NULL is not zero or empty text</h3>
+            <p class="book-prose">
+              NULL represents an unknown, missing, or inapplicable value. Equality tests such as <code>city = NULL</code> do not work as intended. Use <code>IS NULL</code> or <code>IS NOT NULL</code>.
+            </p>
+            ${sqlBlock("NULL CHECKS", `SELECT full_name\nFROM students\nWHERE city IS NULL;`)}
+
+            <h3 class="section-heading">DISTINCT</h3>
+            ${sqlBlock("UNIQUE VALUES", `SELECT DISTINCT city\nFROM students\nWHERE city IS NOT NULL\nORDER BY city;`)}
+          </div>
+        `
+      },
+
+      // PAGE 12: 09 Sorting and limiting results
+      {
+        pageNumber: 12,
+        title: "09 Sorting and limiting results",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">09</span>Sorting and limiting results</h2>
+            <p class="book-prose">
+              ORDER BY sorts rows. LIMIT caps the number returned in SQLite and several other systems. A row limit is most useful when paired with a meaningful sort.
+            </p>
+
+            <h3 class="section-heading">Ascending and descending</h3>
+            ${sqlBlock("ORDER BY", `SELECT full_name, marks\nFROM students\nORDER BY marks DESC;`)}
+            <p class="book-prose">
+              ASC means ascending and is the default. DESC means descending. You may sort by more than one column; the first column is the main sort key, and later columns break ties.
+            </p>
+
+            ${sqlBlock("SORT BY MULTIPLE COLUMNS", `SELECT full_name, city, marks\nFROM students\nORDER BY city ASC, marks DESC;`)}
+
+            <h3 class="section-heading">Limit rows</h3>
+            ${sqlBlock("LIMIT", `SELECT full_name, marks\nFROM students\nORDER BY marks DESC\nLIMIT 3;`)}
+            <p class="book-prose">
+              This query returns up to three students with the highest marks. Without ORDER BY, the selected rows are not guaranteed to be the "top" rows.
+            </p>
+
+            <h3 class="section-heading">Pagination pattern</h3>
+            ${sqlBlock("LIMIT WITH OFFSET", `SELECT product_id, name, price\nFROM products\nORDER BY product_id\nLIMIT 10 OFFSET 0;`)}
+            <p class="book-prose">
+              OFFSET skips rows before returning the next group. For large changing datasets, keyset pagination can be more stable and efficient than large offsets, but LIMIT/OFFSET is a useful starting point.
+            </p>
+
+            <div class="book-callout">
+              <span class="book-callout-tag">DIALECT NOTE</span>
+              Other databases may use TOP, FETCH FIRST, or LIMIT/OFFSET-like syntax. Check the dialect before copying queries between systems.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 13: 10 Aggregate functions
+      {
+        pageNumber: 13,
+        title: "10 Aggregate functions",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">10</span>Aggregate functions</h2>
+            <p class="book-prose">
+              Aggregate functions calculate one summary value from several rows. They are used for totals, counts, averages, and extremes.
+            </p>
+
+            <table class="book-table">
+              <thead><tr><th>Function</th><th>What it returns</th><th>Example</th></tr></thead>
+              <tbody>
+                <tr><td><code>COUNT(*)</code></td><td>Number of rows</td><td><code>COUNT(*)</code></td></tr>
+                <tr><td><code>COUNT(column)</code></td><td>Number of non-NULL values in a column</td><td><code>COUNT(city)</code></td></tr>
+                <tr><td><code>SUM(column)</code></td><td>Total of numeric values</td><td><code>SUM(amount)</code></td></tr>
+                <tr><td><code>AVG(column)</code></td><td>Average of numeric values</td><td><code>AVG(marks)</code></td></tr>
+                <tr><td><code>MAX(column)</code></td><td>Largest value</td><td><code>MAX(price)</code></td></tr>
+                <tr><td><code>MIN(column)</code></td><td>Smallest value</td><td><code>MIN(price)</code></td></tr>
+              </tbody>
+            </table>
+
+            <h3 class="section-heading">Summary of a whole table</h3>
+            ${sqlBlock("AGGREGATE QUERY", `SELECT\n  COUNT(*) AS student_count,\n  ROUND(AVG(marks), 2) AS average_marks,\n  MAX(marks) AS highest_marks,\n  MIN(marks) AS lowest_marks\nFROM students;`)}
+
+            <p class="book-prose">
+              An aggregate query without GROUP BY usually returns one summary row for the selected set. <code>COUNT(*)</code> counts rows. <code>COUNT(column)</code> skips rows where that column is NULL. Most aggregate functions ignore NULL inputs.
+            </p>
+
+            <h3 class="section-heading">Calculated aggregate values</h3>
+            ${sqlBlock("SUM EXAMPLE", `SELECT SUM(price * stock) AS inventory_value\nFROM products;`)}
+
+            <div class="book-callout">
+              <span class="book-callout-tag">CHECK YOUR ASSUMPTIONS</span>
+              AVG and SUM make sense for numeric values. If a column contains text, NULLs, or unexpected units, verify the meaning of the result before using it.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 14: 11 GROUP BY and HAVING
+      {
+        pageNumber: 14,
+        title: "11 GROUP BY and HAVING",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">11</span>GROUP BY and HAVING</h2>
+            <p class="book-prose">
+              GROUP BY collects rows with the same value into groups, so aggregate functions can calculate a summary for each group. HAVING filters the groups after aggregation.
+            </p>
+
+            <h3 class="section-heading">Count students by city</h3>
+            ${sqlBlock("GROUP BY", `SELECT city, COUNT(*) AS student_count\nFROM students\nGROUP BY city\nORDER BY student_count DESC;`)}
+            <p class="book-prose">
+              Each distinct city forms a group. <code>COUNT(*)</code> then counts how many rows belong to that city.
+            </p>
+
+            <h3 class="section-heading">WHERE versus HAVING</h3>
+            <table class="book-table">
+              <thead><tr><th>Clause</th><th>Filters</th><th>When it runs conceptually</th></tr></thead>
+              <tbody>
+                <tr><td><strong>WHERE</strong></td><td>Individual rows</td><td>Before grouping</td></tr>
+                <tr><td><strong>HAVING</strong></td><td>Groups and aggregate results</td><td>After GROUP BY</td></tr>
+              </tbody>
+            </table>
+
+            ${sqlBlock("FILTER ROWS, THEN GROUPS", `SELECT city, AVG(marks) AS average_marks\nFROM students\nWHERE marks IS NOT NULL\nGROUP BY city\nHAVING AVG(marks) >= 85\nORDER BY average_marks DESC;`)}
+
+            <h3 class="section-heading">Logical query order</h3>
+            <p class="book-prose">
+              A helpful mental model is: FROM and JOIN choose the source rows; WHERE filters rows; GROUP BY forms groups; HAVING filters groups; SELECT calculates the output; ORDER BY sorts it; LIMIT restricts the final result.
+            </p>
+
+            <div class="book-callout">
+              <span class="book-callout-tag">RULE OF THUMB</span>
+              Use WHERE for row-level conditions such as <code>city = 'Pune'</code>. Use HAVING for group-level conditions such as <code>COUNT(*) &gt; 3</code>.
+            </div>
+
+            <h3 class="section-heading">Grouping by multiple columns</h3>
+            ${sqlBlock("TWO GROUPING KEYS", `SELECT city, marks, COUNT(*) AS students_at_score\nFROM students\nGROUP BY city, marks\nORDER BY city, marks DESC;`)}
+          </div>
+        `
+      },
+
+      // PAGE 15: 12 Update and delete safely
+      {
+        pageNumber: 15,
+        title: "12 Update and delete safely",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">12</span>Update and delete safely</h2>
+            <p class="book-prose">
+              UPDATE modifies existing rows. DELETE removes rows. Both can affect many records, so inspect the target set before making the change.
+            </p>
+
+            <h3 class="section-heading">Update selected rows</h3>
+            ${sqlBlock("UPDATE", `UPDATE students\nSET marks = 88\nWHERE student_id = 2;`)}
+            <p class="book-prose">
+              SET names the column changes. WHERE identifies which rows to change. Without WHERE, every row in the table may be updated.
+            </p>
+
+            <h3 class="section-heading">Update more than one column</h3>
+            ${sqlBlock("UPDATE", `UPDATE students\nSET city = 'Pune', marks = 89\nWHERE student_id = 2;`)}
+
+            <h3 class="section-heading">Delete selected rows</h3>
+            ${sqlBlock("DELETE", `DELETE FROM students\nWHERE student_id = 4;`)}
+
+            <h3 class="section-heading">A safer workflow</h3>
+            <ol class="list-decimal pl-4 space-y-0.5 text-[10px] text-slate-700 font-serif mb-2">
+              <li>Write a SELECT with the same WHERE condition.</li>
+              <li>Check that the selected rows are exactly the intended rows.</li>
+              <li>Run UPDATE or DELETE with that condition.</li>
+              <li>Run SELECT again to verify the change.</li>
+            </ol>
+
+            ${sqlBlock("PREVIEW BEFORE DELETING", `SELECT * FROM students WHERE marks < 40;\n-- After confirming the target rows:\nDELETE FROM students WHERE marks < 40;`)}
+
+            <div class="book-callout warn">
+              <span class="book-callout-tag">CAUTION</span>
+              A missing WHERE clause is a common cause of accidental mass changes. When possible, practise inside a transaction or use a test copy first.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 16: 13 Changing table structures
+      {
+        pageNumber: 16,
+        title: "13 Changing table structures",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">13</span>Changing table structures</h2>
+            <p class="book-prose">
+              Table design evolves. ALTER TABLE changes a table definition; TRUNCATE and DROP have different effects and differ in availability between database systems.
+            </p>
+
+            <h3 class="section-heading">Add a column</h3>
+            ${sqlBlock("SQLITE EXAMPLE", `ALTER TABLE students ADD COLUMN email TEXT;`)}
+
+            <h3 class="section-heading">Rename a column or table</h3>
+            ${sqlBlock("SQLITE-SUPPORTED PATTERNS", `ALTER TABLE students RENAME COLUMN full_name TO student_name;\nALTER TABLE students RENAME TO learners;`)}
+
+            <p class="book-prose">
+              Support for ALTER TABLE varies by database and version. Some systems also have MODIFY or CHANGE COLUMN operations, while SQLite has a narrower set of direct schema changes.
+            </p>
+
+            <h3 class="section-heading">Drop a column or table</h3>
+            ${sqlBlock("DESTRUCTIVE OPERATIONS", `ALTER TABLE learners DROP COLUMN email;\nDROP TABLE learners;`)}
+            <p class="book-prose">
+              DROP TABLE removes both the table definition and its data. Do not use it when you only want to remove rows.
+            </p>
+
+            <h3 class="section-heading">DELETE, TRUNCATE, and DROP compared</h3>
+            <table class="book-table">
+              <thead><tr><th>Command</th><th>Effect</th><th>Typical use</th></tr></thead>
+              <tbody>
+                <tr><td><code>DELETE FROM t WHERE ...</code></td><td>Removes selected rows; table remains</td><td>Remove records that meet a condition</td></tr>
+                <tr><td><code>DELETE FROM t</code></td><td>Removes all rows; table remains</td><td>Clear rows where supported/appropriate</td></tr>
+                <tr><td><code>TRUNCATE TABLE t</code></td><td>Empties a table; support varies</td><td>Fast table emptying in systems that support it</td></tr>
+                <tr><td><code>DROP TABLE t</code></td><td>Removes table structure and data</td><td>Remove a table that is no longer needed</td></tr>
+              </tbody>
+            </table>
+
+            <div class="book-callout">
+              <span class="book-callout-tag">DIALECT NOTE</span>
+              SQLite does not support the TRUNCATE TABLE statement. <code>DELETE FROM table_name</code> removes rows but keeps the table. MySQL supports TRUNCATE TABLE.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 17: 14 Joins: connect related tables (Part 1)
+      {
+        pageNumber: 17,
+        title: "14 Joins: connect related tables",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">14</span>Joins: connect related tables</h2>
+            <p class="book-prose">
+              A join combines columns from rows in related tables. Joins are most useful when facts are stored separately, as they should be in a well-organised relational design.
+            </p>
+
+            <h3 class="section-heading">Sample tables</h3>
+            <p class="book-prose">
+              Imagine a <code>customers</code> table with one row per customer and an <code>orders</code> table with one row per order. <code>orders.customer_id</code> refers to <code>customers.customer_id</code>.
+            </p>
+            ${sqlBlock("EXAMPLE DATA SETUP", `CREATE TABLE IF NOT EXISTS customers (\n  customer_id INTEGER PRIMARY KEY,\n  customer_name TEXT NOT NULL\n);\nCREATE TABLE IF NOT EXISTS orders (\n  order_id INTEGER PRIMARY KEY,\n  customer_id INTEGER,\n  product TEXT NOT NULL,\n  FOREIGN KEY (customer_id) REFERENCES customers(customer_id)\n);`)}
+
+            <h3 class="section-heading">INNER JOIN</h3>
+            <p class="book-prose">Returns only rows whose join condition matches in both tables.</p>
+            ${sqlBlock("INNER JOIN", `SELECT c.customer_name, o.product\nFROM customers AS c\nINNER JOIN orders AS o\n  ON c.customer_id = o.customer_id;`)}
+
+            <h3 class="section-heading">LEFT JOIN</h3>
+            <p class="book-prose">
+              Returns every row from the left table and matching rows from the right table. If no match exists, the right-table columns are NULL.
+            </p>
+            ${sqlBlock("LEFT JOIN", `SELECT c.customer_name, o.product\nFROM customers AS c\nLEFT JOIN orders AS o\n  ON c.customer_id = o.customer_id;`)}
+
+            <h3 class="section-heading">RIGHT and FULL joins</h3>
+            <p class="book-prose">
+              A RIGHT JOIN keeps every row from the right-hand table. FULL OUTER JOIN keeps unmatched rows from both sides. SQLite supports RIGHT and FULL OUTER JOIN in newer versions, while MySQL does not provide a native FULL OUTER JOIN.
+            </p>
+          </div>
+        `
+      },
+
+      // PAGE 18: 14 Joins: connect related tables (Part 2)
+      {
+        pageNumber: 18,
+        title: "14 Joins (Continued)",
+        content: `
+          <div>
+            ${sqlBlock("FULL OUTER JOIN PATTERN FOR MYSQL", `SELECT c.customer_name, o.product\nFROM customers AS c\nLEFT JOIN orders AS o\n  ON c.customer_id = o.customer_id\nUNION ALL\nSELECT c.customer_name, o.product\nFROM customers AS c\nRIGHT JOIN orders AS o\n  ON c.customer_id = o.customer_id\nWHERE c.customer_id IS NULL;`)}
+
+            <h3 class="section-heading">CROSS JOIN</h3>
+            <p class="book-prose">
+              A CROSS JOIN returns every possible pairing between the rows of two tables. Two rows crossed with three rows produce six combinations.
+            </p>
+            ${sqlBlock("CROSS JOIN", `SELECT s.full_name, c.course_name\nFROM students AS s\nCROSS JOIN courses AS c;`)}
+
+            <h3 class="section-heading">SELF JOIN</h3>
+            <p class="book-prose">
+              A self join uses one table twice under different aliases. It is useful for relationships such as employees and their managers.
+            </p>
+            ${sqlBlock("SELF JOIN", `SELECT e.employee_name AS employee,\n       m.employee_name AS manager\nFROM employees AS e\nLEFT JOIN employees AS m\n  ON e.manager_id = m.employee_id;`)}
+
+            <div class="book-callout">
+              <span class="book-callout-tag">JOIN DEBUGGING</span>
+              If a query returns too many rows, check whether the join key is unique on the side you assumed was one-to-one. A one-to-many relationship naturally produces multiple result rows.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 19: 15 Set operations (Part 1)
+      {
+        pageNumber: 19,
+        title: "15 Set operations",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">15</span>Set operations</h2>
+            <p class="book-prose">
+              Set operators combine the results of separate SELECT statements vertically. Unlike joins, they do not match rows using a relationship between tables.
+            </p>
+
+            <h3 class="section-heading">Rules for set operations</h3>
+            <ul class="list-disc pl-4 space-y-0.5 text-[9.8px] text-slate-700 font-serif mb-1.5">
+              <li>Each SELECT should return the same number of columns.</li>
+              <li>Corresponding columns should have compatible data types.</li>
+              <li>The columns must appear in the same order.</li>
+              <li>Column names in the final output generally follow the first SELECT.</li>
+            </ul>
+
+            <h3 class="section-heading">UNION</h3>
+            <p class="book-prose">UNION appends result rows and removes duplicate rows.</p>
+            ${sqlBlock("UNION", `SELECT city AS place FROM students WHERE city IS NOT NULL\nUNION\nSELECT city AS place FROM staff\nORDER BY place;`)}
+
+            <h3 class="section-heading">UNION ALL</h3>
+            <p class="book-prose">
+              UNION ALL appends all rows and keeps duplicates. It is often faster because the database does not need to remove duplicates.
+            </p>
+            ${sqlBlock("UNION ALL", `SELECT city FROM students WHERE city IS NOT NULL\nUNION ALL\nSELECT city FROM staff;`)}
+
+            <h3 class="section-heading">INTERSECT and EXCEPT</h3>
+            <p class="book-prose">
+              INTERSECT returns distinct rows common to both query results. EXCEPT returns distinct rows from the first result that do not appear in the second.
+            </p>
+            ${sqlBlock("SET DIFFERENCES", `SELECT city FROM students\nINTERSECT\nSELECT city FROM staff;`)}
+          </div>
+        `
+      },
+
+      // PAGE 20: 15 Set operations (Part 2)
+      {
+        pageNumber: 20,
+        title: "15 Set operations (Comparison)",
+        content: `
+          <div>
+            <h3 class="section-heading">EXCEPT Example</h3>
+            ${sqlBlock("EXCEPT", `SELECT city FROM students WHERE city IS NOT NULL\nEXCEPT\nSELECT city FROM staff;`)}
+
+            <h3 class="section-heading">Set operators versus joins</h3>
+            <table class="book-table">
+              <thead><tr><th>Question</th><th>Set operation</th><th>Join</th></tr></thead>
+              <tbody>
+                <tr><td><strong>What combines?</strong></td><td>Rows from compatible result sets</td><td>Columns from related tables</td></tr>
+                <tr><td><strong>Need a matching key?</strong></td><td>No</td><td>Usually yes, through ON or USING</td></tr>
+                <tr><td><strong>Column counts</strong></td><td>Must match</td><td>Can differ</td></tr>
+                <tr><td><strong>Duplicates</strong></td><td>UNION removes duplicates; UNION ALL keeps them</td><td>Depends on row matches and cardinality</td></tr>
+              </tbody>
+            </table>
+
+            <div class="book-callout mt-3">
+              <span class="book-callout-tag">DIALECT NOTE</span>
+              MySQL support for set operators depends on server version. If INTERSECT or EXCEPT is unavailable, the task can often be expressed with joins or subqueries.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 21: 16 Subqueries
+      {
+        pageNumber: 21,
+        title: "16 Subqueries",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">16</span>Subqueries</h2>
+            <p class="book-prose">
+              A subquery is a query nested inside another statement. It lets one query use the result of another query for filtering, comparison, calculation, or building a derived table. For complex queries, test the inner query alone before nesting it.
+            </p>
+
+            <h3 class="section-heading">Scalar subquery</h3>
+            <p class="book-prose">A scalar subquery returns one value, such as one average or maximum.</p>
+            ${sqlBlock("ABOVE-AVERAGE STUDENTS", `SELECT full_name, marks\nFROM students\nWHERE marks > (SELECT AVG(marks) FROM students);`)}
+
+            <h3 class="section-heading">Subquery with IN</h3>
+            ${sqlBlock("MATCH A LIST RETURNED BY ANOTHER QUERY", `SELECT full_name, city\nFROM students\nWHERE city IN (\n  SELECT city FROM campuses WHERE active = 1\n);`)}
+
+            <h3 class="section-heading">EXISTS</h3>
+            <p class="book-prose">
+              EXISTS tests whether the subquery returns at least one row. It is often useful when a related record must exist, without needing columns from that record.
+            </p>
+            ${sqlBlock("EXISTS PATTERN", `SELECT c.customer_name\nFROM customers AS c\nWHERE EXISTS (\n  SELECT 1\n  FROM orders AS o\n  WHERE o.customer_id = c.customer_id\n);`)}
+
+            <h3 class="section-heading">Subqueries in FROM</h3>
+            <p class="book-prose">A subquery in the FROM clause can act as a derived table. Give it an alias in systems that require one.</p>
+            ${sqlBlock("DERIVED TABLE", `SELECT city, avg_marks\nFROM (SELECT city, AVG(marks) AS avg_marks\n      FROM students GROUP BY city) AS summary\nWHERE avg_marks >= 80;`)}
+          </div>
+        `
+      },
+
+      // PAGE 22: 17 Views and indexes
+      {
+        pageNumber: 22,
+        title: "17 Views and indexes",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">17</span>Views and indexes</h2>
+            <p class="book-prose">
+              A view stores a query definition and exposes its result like a virtual table. An index is a data structure that can help the database find rows more efficiently.
+            </p>
+
+            <h3 class="section-heading">Create a view</h3>
+            ${sqlBlock("CREATE VIEW", `CREATE VIEW IF NOT EXISTS high_score_students AS\nSELECT student_id, full_name, marks\nFROM students\nWHERE marks >= 90;`)}
+            <p class="book-prose">
+              A view normally presents current data from its underlying tables when queried. It is not necessarily a stored copy of the results. Materialized views, where available, behave differently.
+            </p>
+
+            <h3 class="section-heading">Use and remove a view</h3>
+            ${sqlBlock("QUERY A VIEW", `SELECT *\nFROM high_score_students\nORDER BY marks DESC;`)}
+
+            <h3 class="section-heading">Create an index</h3>
+            ${sqlBlock("CREATE INDEX", `CREATE INDEX IF NOT EXISTS idx_students_city\nON students(city);`)}
+            <p class="book-prose">
+              An index can speed up searches, joins, or ordering that use the indexed column. Indexes take storage and can slow inserts, updates, and deletes because they must be maintained. Do not add indexes blindly; check query patterns and use the database query planner.
+            </p>
+
+            <h3 class="section-heading">Remove an index</h3>
+            ${sqlBlock("SQLITE EXAMPLE", `DROP INDEX IF EXISTS idx_students_city;`)}
+
+            <div class="book-callout">
+              <span class="book-callout-tag">PRACTICAL RULE</span>
+              Start with correct, readable SQL. Add indexes when you have a measured reason, especially on columns frequently used for joins and selective filters.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 23: 18 Transactions and permissions
+      {
+        pageNumber: 23,
+        title: "18 Transactions and permissions",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">18</span>Transactions and permissions</h2>
+            <p class="book-prose">
+              A transaction groups related changes into a unit of work. A transaction can be committed or rolled back, helping prevent partial changes from leaving data inconsistent.
+            </p>
+
+            <h3 class="section-heading">The core transaction commands</h3>
+            <table class="book-table">
+              <thead><tr><th>Command</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td><code>BEGIN / START TRANSACTION</code></td><td>Begin a transaction; exact syntax depends on the system</td></tr>
+                <tr><td><code>COMMIT</code></td><td>Make the current transaction changes permanent</td></tr>
+                <tr><td><code>ROLLBACK</code></td><td>Undo changes since the transaction began or the last savepoint</td></tr>
+                <tr><td><code>SAVEPOINT</code></td><td>Create a named point to which part of a transaction can be rolled back</td></tr>
+              </tbody>
+            </table>
+
+            <h3 class="section-heading">Example: move funds between accounts</h3>
+            ${sqlBlock("TRANSACTION PATTERN", `BEGIN;\nUPDATE accounts\nSET balance = balance - 100\nWHERE account_id = 1;\n\nUPDATE accounts\nSET balance = balance + 100\nWHERE account_id = 2;\nCOMMIT;\nSELECT * FROM accounts;`)}
+            <p class="book-prose">
+              Use <code>ROLLBACK</code> instead if validation fails. A real transfer should also validate that the source account exists, has enough funds, and that both updates affect the intended rows.
+            </p>
+
+            <h3 class="section-heading">Savepoints</h3>
+            ${sqlBlock("PARTIAL ROLLBACK", `BEGIN;\nUPDATE inventory SET quantity = quantity - 1 WHERE item_id = 7;\nSAVEPOINT after_stock_change;\n-- Other work here\nROLLBACK TO after_stock_change;\nCOMMIT;`)}
+
+            <div class="book-callout warn">
+              <span class="book-callout-tag">SAFETY</span>
+              Not every statement is transactional in every database, and DDL may trigger special commit behaviour.
+            </div>
+          </div>
+        `
+      },
+
+      // PAGE 24: 19 Design habits and debugging
+      {
+        pageNumber: 24,
+        title: "19 Design habits and debugging",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">19</span>Design habits and debugging</h2>
+            <p class="book-prose">
+              Writing SQL well is not just knowing clauses. Good names, clear relationships, and a repeatable debugging process make queries easier to trust. Format queries with consistent indentation, one clause per line, descriptive aliases, and explicit join conditions.
+            </p>
+
+            <h3 class="section-heading">Give each table one job</h3>
+            <p class="book-prose">
+              A <code>students</code> table should describe students; a <code>courses</code> table should describe courses. If a student can take many courses and a course can have many students, model the relationship with a linking table such as <code>enrollments</code>.
+            </p>
+            ${sqlBlock("MANY-TO-MANY RELATIONSHIP", `CREATE TABLE IF NOT EXISTS enrollments (\n  student_id INTEGER NOT NULL,\n  course_id INTEGER NOT NULL,\n  enrolled_on TEXT,\n  PRIMARY KEY (student_id, course_id),\n  FOREIGN KEY (student_id) REFERENCES students(student_id),\n  FOREIGN KEY (course_id) REFERENCES courses(course_id)\n);`)}
+
+            <h3 class="section-heading">Debug a query systematically</h3>
+            <ol class="list-decimal pl-4 space-y-0.5 text-[9.6px] text-slate-700 font-serif mb-1.5">
+              <li>Start with the FROM table and run <code>SELECT *</code> with a small LIMIT.</li>
+              <li>Add one JOIN at a time and inspect the row count.</li>
+              <li>Add WHERE conditions one by one.</li>
+              <li>Add calculations and aliases.</li>
+              <li>Add GROUP BY and HAVING only after the row-level result is correct.</li>
+              <li>Add ORDER BY and LIMIT at the end.</li>
+            </ol>
+
+            <h3 class="section-heading">Common mistakes</h3>
+            <table class="book-table">
+              <thead><tr><th>Problem</th><th>Check</th></tr></thead>
+              <tbody>
+                <tr><td><strong>No rows returned</strong></td><td>Spelling, exact text, comparison, NULL handling, and input data</td></tr>
+                <tr><td><strong>Unexpected duplicates</strong></td><td>Join keys, one-to-many relationships, and SELECT DISTINCT only when appropriate</td></tr>
+                <tr><td><strong>Wrong aggregate</strong></td><td>GROUP BY columns, NULLs, and whether a condition belongs in WHERE or HAVING</td></tr>
+                <tr><td><strong>UPDATE changed too much</strong></td><td>Preview the WHERE condition with SELECT before changing rows</td></tr>
+                <tr><td><strong>Syntax error</strong></td><td>Commas, parentheses, quotes, reserved words, and dialect-specific syntax</td></tr>
+              </tbody>
+            </table>
+          </div>
+        `
+      },
+
+      // PAGE 25: 20 Capstone: a tiny library database (Part 1)
+      {
+        pageNumber: 25,
+        title: "20 Capstone: a tiny library database",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">20</span>Capstone: a tiny library database</h2>
+            <p class="book-prose">
+              This project combines tables, keys, constraints, inserts, joins, filtering, and grouping. Work through it in your SQL playground or a local SQLite database.
+            </p>
+
+            <h3 class="section-heading">Step 1: create the tables</h3>
+            ${sqlBlock("SCHEMA", `PRAGMA foreign_keys = ON;\nCREATE TABLE IF NOT EXISTS members (\n  member_id INTEGER PRIMARY KEY,\n  member_name TEXT NOT NULL,\n  city TEXT NOT NULL\n);\nCREATE TABLE IF NOT EXISTS books (\n  book_id INTEGER PRIMARY KEY,\n  title TEXT NOT NULL,\n  author TEXT NOT NULL,\n  published_year INTEGER\n);\nCREATE TABLE IF NOT EXISTS loans (\n  loan_id INTEGER PRIMARY KEY,\n  member_id INTEGER NOT NULL,\n  book_id INTEGER NOT NULL,\n  loan_date TEXT NOT NULL,\n  returned_date TEXT,\n  FOREIGN KEY (member_id) REFERENCES members(member_id),\n  FOREIGN KEY (book_id) REFERENCES books(book_id)\n);`)}
+
+            <h3 class="section-heading">Step 2: insert practice data</h3>
+            ${sqlBlock("SEED DATA", `INSERT OR REPLACE INTO members (member_id, member_name, city) VALUES\n  (1, 'Aarav', 'Pune'), (2, 'Diya', 'Mumbai'), (3, 'Ishaan', 'Pune');\nINSERT OR REPLACE INTO books (book_id, title, author, published_year) VALUES\n  (10, 'SQL Made Clear', 'R. Sen', 2022),\n  (11, 'Thinking in Data', 'M. Iyer', 2021),\n  (12, 'The Query Habit', 'N. Rao', 2024);\nINSERT OR REPLACE INTO loans (loan_id, member_id, book_id, loan_date, returned_date) VALUES\n  (100, 1, 10, '2026-09-01', '2026-09-10'),\n  (101, 1, 12, '2026-10-02', NULL),\n  (102, 2, 11, '2026-10-05', NULL),\n  (103, 3, 10, '2026-10-08', NULL);`)}
+          </div>
+        `
+      },
+
+      // PAGE 26: 20 Capstone: a tiny library database (Part 2)
+      {
+        pageNumber: 26,
+        title: "20 Capstone: Worked Solutions",
+        content: `
+          <div>
+            <h3 class="section-heading">Step 3: ask questions</h3>
+            <ul class="list-disc pl-4 space-y-0.5 text-[9.5px] text-slate-700 font-serif mb-1.5">
+              <li>List all books published after 2021.</li>
+              <li>Show every loan with the member name and book title.</li>
+              <li>List members who currently have an unreturned book.</li>
+              <li>Count the number of loans per book.</li>
+              <li>Find members who have never borrowed a book.</li>
+            </ul>
+
+            <h3 class="section-heading">Worked solution: loan details</h3>
+            ${sqlBlock("JOIN THREE TABLES", `SELECT m.member_name, b.title, l.loan_date, l.returned_date\nFROM loans AS l\nINNER JOIN members AS m ON m.member_id = l.member_id\nINNER JOIN books AS b ON b.book_id = l.book_id\nORDER BY l.loan_date;`)}
+
+            <h3 class="section-heading">Worked solution: current loans</h3>
+            ${sqlBlock("FILTER ON A MISSING RETURN DATE", `SELECT m.member_name, b.title, l.loan_date\nFROM loans AS l\nINNER JOIN members AS m ON m.member_id = l.member_id\nINNER JOIN books AS b ON b.book_id = l.book_id\nWHERE l.returned_date IS NULL\nORDER BY l.loan_date;`)}
+
+            <h3 class="section-heading">Worked solution: loans per book</h3>
+            ${sqlBlock("AGGREGATE AND SORT", `SELECT b.title, COUNT(l.loan_id) AS loan_count\nFROM books AS b\nLEFT JOIN loans AS l ON l.book_id = b.book_id\nGROUP BY b.book_id, b.title\nORDER BY loan_count DESC, b.title;`)}
+
+            <h3 class="section-heading">Worked solution: members with no loans</h3>
+            ${sqlBlock("LEFT JOIN AND NULL", `SELECT m.member_name\nFROM members AS m\nLEFT JOIN loans AS l ON l.member_id = m.member_id\nWHERE l.loan_id IS NULL;`)}
+          </div>
+        `
+      },
+
+      // PAGE 27: 21 Practice set with solutions (Part 1)
+      {
+        pageNumber: 27,
+        title: "21 Practice set with solutions",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">21</span>Practice set with solutions</h2>
+            <p class="book-prose">
+              Try each question without looking at the solution first. The point is not speed; it is learning to choose the right tool for the question.
+            </p>
+
+            <h3 class="section-heading">Questions</h3>
+            <ol class="list-decimal pl-4 space-y-0.5 text-[9.4px] text-slate-700 font-serif mb-1.5">
+              <li>Create a table named <code>tasks</code> with an integer primary key, a required title, and a status that defaults to <code>'open'</code>.</li>
+              <li>Insert three tasks in one INSERT statement.</li>
+              <li>Return only open tasks, newest task ID first.</li>
+              <li>Find tasks whose title contains the word <code>'sql'</code>.</li>
+              <li>Count tasks by status.</li>
+              <li>Return only statuses with at least two tasks.</li>
+              <li>Change task 2 to status <code>'done'</code>.</li>
+              <li>Delete a task only after previewing it with SELECT.</li>
+              <li>Explain the difference between INNER JOIN and LEFT JOIN.</li>
+              <li>Explain why <code>WHERE COUNT(*) &gt; 2</code> is not the usual way to filter groups.</li>
+            </ol>
+
+            <h3 class="section-heading">Possible solutions (1–6)</h3>
+            ${sqlBlock("1–2. CREATE & INSERT THREE ROWS", `CREATE TABLE IF NOT EXISTS tasks (\n  task_id INTEGER PRIMARY KEY,\n  title TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'open'\n);\nINSERT OR REPLACE INTO tasks (task_id, title) VALUES\n  (1, 'Learn SELECT'),\n  (2, 'Practise SQL joins'),\n  (3, 'Review grouping');`)}
+            ${sqlBlock("3–4. FILTER, SORT & PATTERN MATCH", `SELECT task_id, title, status FROM tasks WHERE status = 'open' ORDER BY task_id DESC;\nSELECT task_id, title FROM tasks WHERE title LIKE '%sql%';`)}
+            ${sqlBlock("5–6. GROUP AND FILTER GROUPS", `SELECT status, COUNT(*) AS task_count\nFROM tasks\nGROUP BY status\nHAVING COUNT(*) >= 2;`)}
+          </div>
+        `
+      },
+
+      // PAGE 28: 21 Practice set with solutions (Part 2)
+      {
+        pageNumber: 28,
+        title: "21 Practice set (Solutions 7–10)",
+        content: `
+          <div>
+            <h3 class="section-heading">Possible solutions (7–10)</h3>
+            ${sqlBlock("7. UPDATE A ROW", `UPDATE tasks\nSET status = 'done'\nWHERE task_id = 2;\nSELECT * FROM tasks;`)}
+
+            ${sqlBlock("8. PREVIEW, THEN DELETE", `SELECT * FROM tasks WHERE task_id = 3;\n-- Only after confirming the row:\nDELETE FROM tasks WHERE task_id = 3;`)}
+
+            <div class="book-callout my-2">
+              <span class="book-callout-tag">QUESTION 9 ANSWER</span>
+              <strong>INNER JOIN</strong> returns matching pairs; <strong>LEFT JOIN</strong> preserves every row from the left input and fills right-side columns with NULL when there is no match.
+            </div>
+
+            ${sqlBlock("10. FILTER GROUPS WITH HAVING", `SELECT status, COUNT(*) AS task_count\nFROM tasks\nGROUP BY status\nHAVING COUNT(*) > 2;`)}
+
+            <p class="book-prose mt-2">
+              <strong>Why HAVING?</strong> WHERE filters individual rows before grouping. HAVING filters the grouped result, so an aggregate condition such as <code>COUNT(*) &gt; 2</code> belongs in HAVING.
+            </p>
+          </div>
+        `
+      },
+
+      // PAGE 29: 22 SQL quick reference and glossary
+      {
+        pageNumber: 29,
+        title: "22 SQL quick reference and glossary",
+        content: `
+          <div>
+            <h2 class="chapter-title"><span class="chapter-num">22</span>SQL quick reference and glossary</h2>
+            <p class="book-prose">
+              Keep this chapter nearby while practising. The goal is to know what a clause is for and where it usually belongs in a query.
+            </p>
+
+            ${sqlBlock("SELECT CLAUSE ORDER", `SELECT columns_or_expressions\nFROM source_table\nJOIN another_table ON join_condition\nWHERE row_condition\nGROUP BY grouping_columns\nHAVING group_condition\nORDER BY sort_columns\nLIMIT row_count;`)}
+
+            <h3 class="section-heading">Frequently used statements</h3>
+            <table class="book-table text-[8.9px]">
+              <thead><tr><th>Task</th><th>Template</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Create / Insert</strong></td><td><code>CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT NOT NULL);</code><br/><code>INSERT INTO t (id, name) VALUES (1, 'Asha');</code></td></tr>
+                <tr><td><strong>Read / Filter</strong></td><td><code>SELECT id, name FROM t WHERE id &gt;= 10 ORDER BY id DESC;</code></td></tr>
+                <tr><td><strong>Group</strong></td><td><code>SELECT status, COUNT(*) FROM t GROUP BY status;</code></td></tr>
+                <tr><td><strong>Update / Delete</strong></td><td><code>UPDATE t SET name = 'Mira' WHERE id = 1;</code><br/><code>DELETE FROM t WHERE id = 1;</code></td></tr>
+                <tr><td><strong>Join / View</strong></td><td><code>SELECT * FROM a JOIN b ON a.id = b.a_id;</code><br/><code>CREATE VIEW v AS SELECT id, name FROM t;</code></td></tr>
+              </tbody>
+            </table>
+
+            <h3 class="section-heading">Glossary</h3>
+            <table class="book-table text-[8.9px]">
+              <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Database / DBMS / RDBMS</strong></td><td>An organised collection of data and the software that manages it; an RDBMS organises data into related tables.</td></tr>
+                <tr><td><strong>Schema</strong></td><td>The definition of structures such as tables, columns, and constraints.</td></tr>
+                <tr><td><strong>Primary / Foreign key</strong></td><td>A unique row identifier / a reference to a key in another table.</td></tr>
+                <tr><td><strong>NULL</strong></td><td>A marker for missing, unknown, or inapplicable information.</td></tr>
+                <tr><td><strong>Aggregate function</strong></td><td>A calculation across multiple rows, such as COUNT or AVG.</td></tr>
+                <tr><td><strong>Join / Subquery / Transaction</strong></td><td>Combines related rows / nests one query in another / groups changes to commit or roll back.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        `
+      },
+
+      // PAGE 30: Interactive Practice Lab & Colophon (Pairs with Page 29 on Spread 15)
+      {
+        pageNumber: 30,
+        title: "Interactive SQL Lab & Notes",
+        content: `
+          <div class="flex-1 flex flex-col justify-between">
+            <div>
+              <h2 class="chapter-title">Interactive SQL Practice Lab</h2>
+              <p class="book-prose">
+                You have reached the end of the 29-page <strong>SQL by sparrowsql</strong> field guide. Every table from this book is pre-loaded inside the browser's live SQLite engine.
+              </p>
+
+              <div class="p-3.5 rounded-xl bg-blue-50 border border-blue-200 my-3">
+                <div class="text-xs font-extrabold text-blue-900 mb-1">Write • Predict • Run • Compare</div>
+                <p class="text-[10px] text-blue-800 leading-relaxed mb-2.5">
+                  Click the button below or any <strong>▶ Run</strong> button on any page to launch the interactive SQLite console with all book tables ready to query.
+                </p>
+                <button type="button" onclick="event.stopPropagation(); window.openSqlPlayground('SELECT m.member_name, b.title, l.loan_date\\nFROM loans AS l\\nINNER JOIN members AS m ON m.member_id = l.member_id\\nINNER JOIN books AS b ON b.book_id = l.book_id\\nORDER BY l.loan_date;');" class="w-full py-2 px-3 rounded-lg bg-[#0077ff] hover:bg-blue-600 text-white font-bold text-xs shadow transition">
+                  Launch Live SQLite Playground
+                </button>
+              </div>
+
+              <h3 class="section-heading">Pre-loaded Tables in Live Lab</h3>
+              <table class="book-table">
+                <thead><tr><th>Table Name</th><th>Chapter Context</th></tr></thead>
+                <tbody>
+                  <tr><td><code>students</code>, <code>products</code>, <code>notes</code></td><td>Chapters 01–13 (CRUD, Filtering, Grouping)</td></tr>
+                  <tr><td><code>customers</code>, <code>orders</code>, <code>employees</code></td><td>Chapter 14 (INNER, LEFT, SELF, CROSS Joins)</td></tr>
+                  <tr><td><code>staff</code>, <code>campuses</code>, <code>courses</code></td><td>Chapters 15–16 (Set Operations & Subqueries)</td></tr>
+                  <tr><td><code>members</code>, <code>books</code>, <code>loans</code></td><td>Chapter 20 (Library Capstone Database)</td></tr>
+                  <tr><td><code>tasks</code>, <code>accounts</code>, <code>inventory</code></td><td>Chapters 18 & 21 (Transactions & Practice Set)</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="p-3 rounded-lg bg-slate-900 text-slate-200 text-[10px] flex items-center justify-between">
+              <span><strong>COMPLETE SQL</strong> • Teacher: sparrowsql</span>
+              <span class="text-blue-400 font-mono">LEARN • PRACTICE • BUILD</span>
+            </div>
+          </div>
+        `
+      }
+    ];
+
+    // Sheet 15 Back Cover Design
+    const backCoverHTML = `
+      <div class="w-full h-full bg-[#fafaf8] text-[#111827] flex flex-col justify-between px-10 py-9 relative select-none" style="border-radius: 7px 0 0 7px; box-shadow: inset -14px 0 24px -10px rgba(0,0,0,0.22), inset 2px 0 4px rgba(0,0,0,0.08);">
+        <div class="absolute top-0 bottom-0 right-3.5 w-[2px] bg-gradient-to-b from-black/10 via-black/15 to-black/10"></div>
+
+        <div>
+          <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-5">
+            <span class="text-[10px] font-bold tracking-[0.24em] text-slate-500 uppercase">COMPLETE SQL • FIELD GUIDE</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-blue-50 text-[#0077ff] font-bold text-[10px]">sparrowsql</span>
+          </div>
+
+          <h2 class="text-xl font-extrabold text-slate-900 tracking-tight mb-2" style="font-family:'Plus Jakarta Sans',sans-serif;">
+            Master Relational Thinking from Your First SELECT to Real Projects.
+          </h2>
+          <p class="text-xs text-slate-600 leading-relaxed mb-5">
+            Designed as a practical, no-fluff companion for learners, analysts, and developers. Write a query, predict the output, run it, and compare what happened with what you expected.
+          </p>
+
+          <div class="grid grid-cols-2 gap-3 mb-5">
+            <div class="p-3 rounded-xl bg-white border border-slate-200/90 shadow-sm">
+              <div class="text-[10px] font-extrabold text-[#0077ff] uppercase tracking-wider mb-1">Core Foundations</div>
+              <p class="text-[10.5px] text-slate-600 leading-snug">Tables, Data Types, Keys, Constraints, CRUD, Filtering & Sorting.</p>
+            </div>
+            <div class="p-3 rounded-xl bg-white border border-slate-200/90 shadow-sm">
+              <div class="text-[10px] font-extrabold text-[#0077ff] uppercase tracking-wider mb-1">Data Analysis</div>
+              <p class="text-[10.5px] text-slate-600 leading-snug">Aggregates, GROUP BY, HAVING, Joins, Set Operations & Subqueries.</p>
+            </div>
+            <div class="p-3 rounded-xl bg-white border border-slate-200/90 shadow-sm">
+              <div class="text-[10px] font-extrabold text-[#0077ff] uppercase tracking-wider mb-1">Production Habits</div>
+              <p class="text-[10.5px] text-slate-600 leading-snug">Views, Indexes, ACID Transactions, Savepoints & Systematic Debugging.</p>
+            </div>
+            <div class="p-3 rounded-xl bg-white border border-slate-200/90 shadow-sm">
+              <div class="text-[10px] font-extrabold text-[#0077ff] uppercase tracking-wider mb-1">Library Capstone</div>
+              <p class="text-[10.5px] text-slate-600 leading-snug">End-to-end relational schema, seed data, worked multi-table joins & practice set.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-between">
+          <div>
+            <div class="text-xs font-extrabold text-slate-900">SQL BY SPARROWSQL</div>
+            <div class="text-[10px] text-slate-500">LEARN • WRITE • RUN • UNDERSTAND</div>
+          </div>
+          <!-- Barcode Aesthetic -->
+          <div class="bg-white px-3 py-1.5 rounded border border-slate-200 flex flex-col items-center">
+            <div class="h-5 w-24 bg-[repeating-linear-gradient(90deg,#111_0px,#111_2px,transparent_2px,transparent_4px,#111_4px,#111_5px,transparent_5px,transparent_8px)]"></div>
+            <span class="font-mono text-[8px] tracking-widest text-slate-500 mt-0.5">978-0-SQL-SPARROW</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    /********************************************************************
+     * 2. CONSTRUCT THE 16 3D SHEETS (32 FACES) WITH 3D CURL & DRAG PHYSICS
+     ********************************************************************/
+    const TOTAL_SHEETS = 16; // Sheet 0 .. Sheet 15 => Spreads 0 .. 16
+    let currentSpread = 0;   // 0 = Front Cover closed, 1 = Pages 1-2, ..., 15 = Pages 29-30, 16 = Back Cover closed
+    let isZoomed = false;
+    let isBookOnlyFullscreen = false;
+    let soundEnabled = true;
+    let soundVolume = 0.78;
+    let autoFlipTimer = null;
+    const bookmarks = new Set();
+
+    // Track per-sheet real-time 3D angle (0 = resting right, -180 = resting left)
+    const sheetAngles = new Array(TOTAL_SHEETS).fill(0);
+    const sheetAnimations = new Array(TOTAL_SHEETS).fill(null);
+
+    function wrapInteriorPage(pageObj) {
+      const chBadge = pageObj.pageNumber <= 3
+        ? 'INTRO'
+        : `PAGE ${String(pageObj.pageNumber).padStart(2, '0')}`;
+      return `
+        <div class="book-page-inner">
+          <div>
+            <div class="running-header">
+              <span>SQL BY SPARROWSQL / A PRACTICAL FIELD GUIDE</span>
+              <span class="text-blue-600 font-semibold">${chBadge}</span>
+            </div>
+            ${pageObj.content}
+          </div>
+          <div class="running-footer">
+            <span>TEACHER: SPARROWSQL</span>
+            <span class="font-mono font-bold text-slate-800">${pageObj.pageNumber}</span>
+          </div>
+        </div>
+        <div class="corner-peel-fold"></div>
+        <div class="corner-curl-hint" title="Click or drag to turn page">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+        </div>
+        <div class="page-curl-lighting"></div>
+      `;
+    }
+
+    function buildBookSheets() {
+      const container = document.getElementById('sheetsContainer');
+      container.innerHTML = '';
+
+      for (let i = 0; i < TOTAL_SHEETS; i++) {
+        const sheet = document.createElement('div');
+        sheet.className = 'sheet';
+        sheet.dataset.sheetIndex = i;
+
+        let frontHTML = '';
+        let backHTML = '';
+
+        if (i === 0) {
+          frontHTML = frontCoverHTML + `<div class="corner-peel-fold"></div><div class="page-curl-lighting"></div>`;
+          backHTML = wrapInteriorPage(bookPages[0]); // Page 1
+        } else if (i < TOTAL_SHEETS - 1) {
+          const frontPageObj = bookPages[2 * i - 1];
+          const backPageObj = bookPages[2 * i];
+          frontHTML = wrapInteriorPage(frontPageObj);
+          backHTML = wrapInteriorPage(backPageObj);
+        } else {
+          frontHTML = wrapInteriorPage(bookPages[29]); // Page 30
+          backHTML = backCoverHTML + `<div class="corner-peel-fold"></div><div class="page-curl-lighting"></div>`;
+        }
+
+        sheet.innerHTML = `
+          <div class="page-face page-front">${frontHTML}</div>
+          <div class="page-face page-back">${backHTML}</div>
+        `;
+
+        // Play subtle corner paper lift rustle on hover near outer edge
+        sheet.addEventListener('mouseenter', (e) => {
+          const rect = sheet.getBoundingClientRect();
+          const relX = e.clientX - rect.left;
+          const isFlipped = i < currentSpread;
+          if ((!isFlipped && relX > rect.width * 0.65) || (isFlipped && relX < rect.width * 0.35)) {
+            playCornerHoverRustle();
+          }
+        });
+
+        // Attach pointer drag-to-flip & click-to-flip physics
+        attachSheetDragPhysics(sheet, i);
+
+        container.appendChild(sheet);
+      }
+
+      syncBookFrameAndUI();
+      renderAllSheets3D();
+    }
+
+    /********************************************************************
+     * 3. ULTRA-REALISTIC 60FPS 3D PAGE-CURL & SPINE ARCH ENGINE
+     ********************************************************************/
+    function applySheet3DTransform(sheet, idx, angleDeg) {
+      // Normalize progress: 0.0 (right flat) -> 0.5 (vertical mid-turn) -> 1.0 (left flat)
+      const t = Math.max(0, Math.min(1, Math.abs(angleDeg) / 180));
+      const sinWave = Math.sin(t * Math.PI);       // Peaks at 90deg mid-turn (t = 0.5)
+      const doubleWave = Math.sin(t * Math.PI * 2); // Inflects + then - for S-curve paper flex
+
+      // Resting Spine Arch: pages arch gently out of the center gutter even at rest
+      const isCoverSheet = (idx === 0 && t < 0.25) || (idx === TOTAL_SHEETS - 1 && t > 0.75);
+
+      // Z-depth layering so stacked pages never z-fight + high Z lift during page turn
+      const baseStackZ = (angleDeg <= -90)
+        ? (idx - currentSpread) * 0.55
+        : (currentSpread - idx) * 0.55;
+      const turnLiftZ = sinWave * (isCoverSheet ? 28 : 44);
+      const totalZ = baseStackZ + turnLiftZ;
+
+      // Realistic 3D paper flex/curl during turn:
+      // As you lift a page from the corner, it pitches slightly in X and twists in Z/skewY
+      const curlRotateX = isCoverSheet ? (sinWave * 2.2) : (sinWave * 6.8);
+      const curlRotateZ = isCoverSheet ? 0 : (doubleWave * -2.6);
+      const curlSkewY   = isCoverSheet ? 0 : (sinWave * -3.2);
+
+      sheet.style.transform = `
+        translateZ(${totalZ.toFixed(2)}px)
+        rotateY(${angleDeg.toFixed(2)}deg)
+        rotateX(${curlRotateX.toFixed(2)}deg)
+        rotateZ(${curlRotateZ.toFixed(2)}deg)
+        skewY(${curlSkewY.toFixed(2)}deg)
+      `;
+
+      // Dynamic Z-index so actively turning sheets always float above resting stacks
+      const isMidTurn = t > 0.01 && t < 0.99;
+      if (isMidTurn) {
+        sheet.style.zIndex = 500 + Math.round(sinWave * 100);
+      } else {
+        const isFlipped = angleDeg <= -90;
+        sheet.style.zIndex = isFlipped ? (idx + 10) : (TOTAL_SHEETS - idx + 10);
+      }
+      sheet.classList.toggle('flipped', angleDeg <= -90);
+
+      // Moving specular highlight & curl shading on the turning sheet faces
+      const frontLighting = sheet.querySelector('.page-front .page-curl-lighting');
+      const backLighting = sheet.querySelector('.page-back .page-curl-lighting');
+
+      if (frontLighting && backLighting) {
+        if (isMidTurn) {
+          const highlightPos = Math.round((1 - t) * 100);
+          frontLighting.style.opacity = (sinWave * 0.92).toFixed(2);
+          frontLighting.style.background = `linear-gradient(90deg,
+            rgba(0,0,0,${(0.32 * sinWave).toFixed(2)}) 0%,
+            rgba(255,255,255,${(0.45 * sinWave).toFixed(2)}) ${highlightPos}%,
+            rgba(0,0,0,${(0.18 * sinWave).toFixed(2)}) 100%)`;
+
+          backLighting.style.opacity = (sinWave * 0.92).toFixed(2);
+          backLighting.style.background = `linear-gradient(270deg,
+            rgba(0,0,0,${(0.32 * sinWave).toFixed(2)}) 0%,
+            rgba(255,255,255,${(0.45 * sinWave).toFixed(2)}) ${100 - highlightPos}%,
+            rgba(0,0,0,${(0.18 * sinWave).toFixed(2)}) 100%)`;
+        } else {
+          frontLighting.style.opacity = '0';
+          backLighting.style.opacity = '0';
+        }
+      }
+
+      // Sweep a realistic soft cast shadow across the open book underneath
+      updateDynamicCastShadow(t, sinWave);
+    }
+
+    function updateDynamicCastShadow(t, sinWave) {
+      const castEl = document.getElementById('dynamicCastShadow');
+      if (!castEl) return;
+
+      if (sinWave < 0.02) {
+        castEl.style.opacity = '0';
+        return;
+      }
+
+      castEl.style.opacity = '1';
+      // Shadow center moves from right page (75%) across spine (50%) to left page (25%)
+      const shadowCenter = 82 - t * 64;
+      const spreadWidth = 14 + sinWave * 22;
+      const alpha = (sinWave * 0.42).toFixed(3);
+
+      castEl.style.background = `linear-gradient(90deg,
+        transparent ${Math.max(0, shadowCenter - spreadWidth)}%,
+        rgba(8, 6, 3, ${alpha}) ${shadowCenter}%,
+        transparent ${Math.min(100, shadowCenter + spreadWidth)}%
+      )`;
+    }
+
+    function renderAllSheets3D() {
+      const sheets = document.querySelectorAll('.sheet');
+      sheets.forEach((sheet, idx) => {
+        applySheet3DTransform(sheet, idx, sheetAngles[idx]);
+      });
+    }
+
+    function animateSheetToAngle(idx, targetAngle, duration = 760, onComplete) {
+      const sheets = document.querySelectorAll('.sheet');
+      const sheet = sheets[idx];
+      if (!sheet) return;
+
+      if (sheetAnimations[idx]) {
+        cancelAnimationFrame(sheetAnimations[idx]);
+      }
+
+      const startAngle = sheetAngles[idx];
+      const delta = targetAngle - startAngle;
+      if (Math.abs(delta) < 0.2) {
+        sheetAngles[idx] = targetAngle;
+        applySheet3DTransform(sheet, idx, targetAngle);
+        if (onComplete) onComplete();
+        return;
+      }
+
+      const startTime = performance.now();
+
+      // Custom cubic-bezier-like organic paper easing (smooth lift, brisk mid-swing, cushioned landing)
+      function easePaperTurn(x) {
+        return x < 0.5
+          ? 4 * x * x * x
+          : 1 - Math.pow(-2 * x + 2, 3) / 2;
+      }
+
+      function step(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        const eased = easePaperTurn(progress);
+
+        sheetAngles[idx] = startAngle + delta * eased;
+        applySheet3DTransform(sheet, idx, sheetAngles[idx]);
+
+        if (progress < 1) {
+          sheetAnimations[idx] = requestAnimationFrame(step);
+        } else {
+          sheetAngles[idx] = targetAngle;
+          sheetAnimations[idx] = null;
+          applySheet3DTransform(sheet, idx, targetAngle);
+          triggerBookSettlePulse();
+          if (onComplete) onComplete();
+        }
+      }
+
+      sheetAnimations[idx] = requestAnimationFrame(step);
+    }
+
+    // Subtle physical book weight bounce when a heavy page or cover lands
+    function triggerBookSettlePulse() {
+      const rig = document.getElementById('bookParallaxRig');
+      if (!rig) return;
+      rig.style.transform = 'translateZ(-4px) rotateX(0.9deg)';
+      setTimeout(() => {
+        rig.style.transform = 'translateZ(0px) rotateX(0deg)';
+      }, 140);
+    }
+
+    // Interactive Drag-to-Flip & Click-to-Flip on every sheet
+    function attachSheetDragPhysics(sheet, idx) {
+      let isPointerDown = false;
+      let hasDragged = false;
+      let startX = 0;
+      let startAngle = 0;
+
+      sheet.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('button') || e.target.closest('a') || e.target.closest('tr[onclick]')) return;
+        // Only top-most sheet on the right (idx === currentSpread) or left (idx === currentSpread - 1) can be dragged
+        if (idx !== currentSpread && idx !== currentSpread - 1) return;
+
+        isPointerDown = true;
+        hasDragged = false;
+        startX = e.clientX;
+        startAngle = sheetAngles[idx];
+        sheet.setPointerCapture(e.pointerId);
+
+        if (sheetAnimations[idx]) {
+          cancelAnimationFrame(sheetAnimations[idx]);
+          sheetAnimations[idx] = null;
+        }
+      });
+
+      sheet.addEventListener('pointermove', (e) => {
+        if (!isPointerDown) return;
+        const dx = e.clientX - startX;
+        if (Math.abs(dx) > 8 && !hasDragged) {
+          hasDragged = true;
+          playCornerHoverRustle();
+        }
+        if (!hasDragged) return;
+
+        // Convert horizontal drag distance across book width to 0..-180deg rotation
+        const bookPixelWidth = 440;
+        const deltaDeg = (dx / bookPixelWidth) * 180;
+        const nextAngle = Math.max(-180, Math.min(0, startAngle + deltaDeg));
+        sheetAngles[idx] = nextAngle;
+        applySheet3DTransform(sheet, idx, nextAngle);
+      });
+
+      function finishPointer(e) {
+        if (!isPointerDown) return;
+        isPointerDown = false;
+
+        if (!hasDragged) {
+          // Simple click -> smooth 3D page flip
+          if (idx >= currentSpread) {
+            goToSpread(idx + 1);
+          } else {
+            goToSpread(idx);
+          }
+          return;
+        }
+
+        // Drag release: decide whether to complete flip or snap back
+        const currentAngle = sheetAngles[idx];
+        const turningForward = startAngle > -90;
+        const threshold = turningForward ? -55 : -125;
+
+        if (turningForward && currentAngle < threshold) {
+          currentSpread = idx + 1;
+          playBookAcousticForTransition(idx, idx + 1);
+          syncBookFrameAndUI();
+          animateSheetToAngle(idx, -180, 460);
+        } else if (!turningForward && currentAngle > threshold) {
+          currentSpread = idx;
+          playBookAcousticForTransition(idx + 1, idx);
+          syncBookFrameAndUI();
+          animateSheetToAngle(idx, 0, 460);
+        } else {
+          // Snap back to original resting side
+          animateSheetToAngle(idx, startAngle, 380);
+        }
+      }
+
+      sheet.addEventListener('pointerup', finishPointer);
+      sheet.addEventListener('pointercancel', finishPointer);
+    }
+
+    function syncBookFrameAndUI() {
+      const bookScene = document.getElementById('bookScene');
+      const hardcoverBase = document.getElementById('hardcoverBase');
+      const bookSpineHinge = document.getElementById('bookSpineHinge');
+      const paperStackLeft = document.getElementById('paperStackLeft');
+      const paperStackRight = document.getElementById('paperStackRight');
+      const paperBottomLeft = document.getElementById('paperBottomLeft');
+      const paperBottomRight = document.getElementById('paperBottomRight');
+      const floorShadow = document.getElementById('bookFloorShadow');
+      const gutterShadow = document.getElementById('bookGutterShadow');
+
+      if (currentSpread === 0) {
+        // Closed Front Cover centered
+        bookScene.style.transform = 'translateX(-25%) rotateX(7deg)';
+        hardcoverBase.style.clipPath = 'inset(0 0 0 49.5%)';
+        bookSpineHinge.style.opacity = '0.35';
+        paperStackLeft.style.opacity = '0';
+        paperBottomLeft.style.opacity = '0';
+        paperStackRight.style.opacity = '1';
+        paperStackRight.style.width = '16px';
+        paperBottomRight.style.opacity = '1';
+        floorShadow.style.left = '48%';
+        floorShadow.style.right = '4%';
+        if (gutterShadow) gutterShadow.style.opacity = '0';
+      } else if (currentSpread === TOTAL_SHEETS) {
+        // Closed Back Cover centered
+        bookScene.style.transform = 'translateX(25%) rotateX(7deg)';
+        hardcoverBase.style.clipPath = 'inset(0 49.5% 0 0)';
+        bookSpineHinge.style.opacity = '0.35';
+        paperStackRight.style.opacity = '0';
+        paperBottomRight.style.opacity = '0';
+        paperStackLeft.style.opacity = '1';
+        paperStackLeft.style.width = '16px';
+        paperBottomLeft.style.opacity = '1';
+        floorShadow.style.left = '4%';
+        floorShadow.style.right = '48%';
+        if (gutterShadow) gutterShadow.style.opacity = '0';
+      } else {
+        // Open two-page 3D spread
+        bookScene.style.transform = 'translateX(0%) rotateX(8.5deg)';
+        hardcoverBase.style.clipPath = 'inset(0 0 0 0)';
+        bookSpineHinge.style.opacity = '1';
+        paperBottomLeft.style.opacity = '1';
+        paperBottomRight.style.opacity = '1';
+        floorShadow.style.left = '3%';
+        floorShadow.style.right = '3%';
+        if (gutterShadow) gutterShadow.style.opacity = '1';
+
+        const leftRatio = currentSpread / TOTAL_SHEETS;
+        const rightRatio = (TOTAL_SHEETS - currentSpread) / TOTAL_SHEETS;
+        paperStackLeft.style.opacity = '1';
+        paperStackRight.style.opacity = '1';
+        paperStackLeft.style.width = `${Math.max(4, Math.round(leftRatio * 17))}px`;
+        paperStackRight.style.width = `${Math.max(4, Math.round(rightRatio * 17))}px`;
+      }
+
+      // Update UI Counters & Buttons
+      const pageIndicator = document.getElementById('pageIndicatorText');
+      if (currentSpread === 0) {
+        pageIndicator.textContent = 'Front Cover';
+      } else if (currentSpread === TOTAL_SHEETS) {
+        pageIndicator.textContent = 'Back Cover';
+      } else {
+        const leftPg = currentSpread * 2 - 1;
+        const rightPg = currentSpread * 2;
+        pageIndicator.textContent = `${leftPg} - ${Math.min(29, rightPg)} / 29`;
+      }
+
+      const spreadSlider = document.getElementById('spreadSlider');
+      if (spreadSlider) spreadSlider.value = currentSpread;
+      const sidePrevBtn = document.getElementById('sidePrevBtn');
+      if (sidePrevBtn) sidePrevBtn.disabled = currentSpread === 0;
+      const bottomPrevBtn = document.getElementById('bottomPrevBtn');
+      if (bottomPrevBtn) bottomPrevBtn.disabled = currentSpread === 0;
+      const sideNextBtn = document.getElementById('sideNextBtn');
+      if (sideNextBtn) sideNextBtn.disabled = currentSpread === TOTAL_SHEETS;
+      const bottomNextBtn = document.getElementById('bottomNextBtn');
+      if (bottomNextBtn) bottomNextBtn.disabled = currentSpread === TOTAL_SHEETS;
+
+      const bookmarkIcon = document.getElementById('bookmarkIcon');
+      if (bookmarkIcon) {
+        if (bookmarks.has(currentSpread)) {
+          bookmarkIcon.setAttribute('fill', '#3b82f6');
+          bookmarkIcon.classList.add('text-blue-400');
+        } else {
+          bookmarkIcon.setAttribute('fill', 'none');
+          bookmarkIcon.classList.remove('text-blue-400');
+        }
+      }
+
+      highlightActiveTocItem();
+
+      // Notify parent SparrowSQL application of spread change
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'sparrowsql:book-spread',
+          spread: currentSpread,
+          totalSpreads: TOTAL_SHEETS
+        }, '*');
+      }
+    }
+
+    function goToSpread(targetSpread) {
+      const clamped = Math.max(0, Math.min(TOTAL_SHEETS, targetSpread));
+      if (clamped === currentSpread) return;
+
+      const prevSpread = currentSpread;
+      const diff = Math.abs(clamped - prevSpread);
+      currentSpread = clamped;
+      syncBookFrameAndUI();
+
+      // Play appropriate realistic book acoustics
+      if (diff === 1) {
+        playBookAcousticForTransition(prevSpread, clamped);
+      } else {
+        playRiffleCascade(Math.min(diff, 7));
+      }
+
+      // Animate sheets smoothly with staggered cascade if jumping multiple chapters
+      for (let i = 0; i < TOTAL_SHEETS; i++) {
+        const shouldBeFlipped = i < clamped;
+        const targetAngle = shouldBeFlipped ? -180 : 0;
+        if (Math.abs(sheetAngles[i] - targetAngle) > 0.5) {
+          const staggerOrder = clamped > prevSpread
+            ? Math.max(0, i - prevSpread)
+            : Math.max(0, prevSpread - 1 - i);
+          const delay = Math.min(staggerOrder * 55, 320);
+          setTimeout(() => {
+            animateSheetToAngle(i, targetAngle, diff === 1 ? 780 : 620);
+          }, delay);
+        }
+      }
+    }
+
+    function goToBookPage(pageNumber) {
+      const targetSpread = Math.ceil(pageNumber / 2);
+      goToSpread(targetSpread);
+    }
+
+    window.goToSpread = goToSpread;
+    window.goToBookPage = goToBookPage;
+
+    /********************************************************************
+     * 4. HYPER-REALISTIC MULTI-STAGE PAPER & HARDCOVER SOUND ENGINE
+     *    (Web Audio API — 100% Procedural Physical Book Acoustics)
+     ********************************************************************/
+    let audioCtx = null;
+    let lastHoverRustleTime = 0;
+
+    function ensureAudioContext() {
+      if (!soundEnabled || soundVolume <= 0.01) return null;
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        return audioCtx;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function playBookAcousticForTransition(fromSpread, toSpread) {
+      // Opening or closing heavy hardcover board (Spread 0 or Spread 16)
+      if (fromSpread === 0 || toSpread === 0 || fromSpread === TOTAL_SHEETS || toSpread === TOTAL_SHEETS) {
+        playHardcoverThump();
+      } else {
+        playRealisticPageTurnSound();
+      }
+    }
+
+    // 3-Stage Realistic Paper Page Turn:
+    // (1) Fingertip edge pick friction -> (2) Crisp arching paper air swoosh -> (3) Soft paper stack settle slide & micro-thud
+    function playRealisticPageTurnSound(pitchVariance = 1.0) {
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime(soundVolume * 0.65, now);
+      masterGain.connect(ctx.destination);
+
+      // --- LAYER 1: Fingertip Paper Edge Pick (0.00s - 0.065s) ---
+      const pickLen = Math.floor(ctx.sampleRate * 0.065);
+      const pickBuf = ctx.createBuffer(1, pickLen, ctx.sampleRate);
+      const pickData = pickBuf.getChannelData(0);
+      for (let i = 0; i < pickLen; i++) {
+        const t = i / pickLen;
+        const env = Math.sin(t * Math.PI) * Math.pow(1 - t, 1.4);
+        // Textured crackle + pink-ish grain
+        pickData[i] = (Math.random() * 2 - 1) * env * (0.6 + 0.4 * Math.sin(i * 0.15));
+      }
+      const pickSrc = ctx.createBufferSource();
+      pickSrc.buffer = pickBuf;
+      const pickFilter = ctx.createBiquadFilter();
+      pickFilter.type = 'bandpass';
+      pickFilter.frequency.setValueAtTime(2600 * pitchVariance, now);
+      pickFilter.Q.value = 2.2;
+      const pickGain = ctx.createGain();
+      pickGain.gain.setValueAtTime(0.32, now);
+      pickSrc.connect(pickFilter);
+      pickFilter.connect(pickGain);
+      pickGain.connect(masterGain);
+      pickSrc.start(now);
+
+      // --- LAYER 2: Main Paper Arch Bend & Air Flutter Wave (0.03s - 0.46s) ---
+      const turnDur = 0.44;
+      const turnLen = Math.floor(ctx.sampleRate * turnDur);
+      const turnBuf = ctx.createBuffer(1, turnLen, ctx.sampleRate);
+      const turnData = turnBuf.getChannelData(0);
+      let b0 = 0, b1 = 0, b2 = 0;
+      for (let i = 0; i < turnLen; i++) {
+        const t = i / turnLen;
+        const white = Math.random() * 2 - 1;
+        // Pink noise filtering for natural fibrous paper timbre
+        b0 = 0.997 * b0 + white * 0.029;
+        b1 = 0.985 * b1 + white * 0.032;
+        b2 = 0.950 * b2 + white * 0.048;
+        const pink = (b0 + b1 + b2 + white * 0.18) * 1.6;
+        // Organic dual-hump envelope as page lifts and sweeps over spine
+        const env = Math.pow(Math.sin(t * Math.PI), 1.15) * (0.82 + 0.18 * Math.sin(t * Math.PI * 3));
+        turnData[i] = pink * env;
+      }
+      const turnSrc = ctx.createBufferSource();
+      turnSrc.buffer = turnBuf;
+
+      // Formant Filter A: Paper surface rustle sweep
+      const filterA = ctx.createBiquadFilter();
+      filterA.type = 'bandpass';
+      filterA.frequency.setValueAtTime(820 * pitchVariance, now + 0.03);
+      filterA.frequency.exponentialRampToValueAtTime(2150 * pitchVariance, now + 0.21);
+      filterA.frequency.exponentialRampToValueAtTime(680 * pitchVariance, now + 0.46);
+      filterA.Q.value = 1.65;
+
+      // Formant Filter B: Crisp paper edge shimmer
+      const filterB = ctx.createBiquadFilter();
+      filterB.type = 'highpass';
+      filterB.frequency.setValueAtTime(1450 * pitchVariance, now + 0.03);
+
+      const turnGain = ctx.createGain();
+      turnGain.gain.setValueAtTime(0.001, now + 0.02);
+      turnGain.gain.linearRampToValueAtTime(0.68, now + 0.18);
+      turnGain.gain.exponentialRampToValueAtTime(0.008, now + 0.46);
+
+      turnSrc.connect(filterA);
+      filterA.connect(filterB);
+      filterB.connect(turnGain);
+      turnGain.connect(masterGain);
+      turnSrc.start(now + 0.025);
+
+      // --- LAYER 3: Soft Paper-on-Paper Settle Slide & Micro-Thud (0.38s - 0.56s) ---
+      const thudOsc = ctx.createOscillator();
+      const thudGain = ctx.createGain();
+      thudOsc.type = 'sine';
+      thudOsc.frequency.setValueAtTime(145 * pitchVariance, now + 0.39);
+      thudOsc.frequency.exponentialRampToValueAtTime(46, now + 0.52);
+
+      thudGain.gain.setValueAtTime(0.001, now + 0.38);
+      thudGain.gain.linearRampToValueAtTime(0.22, now + 0.41);
+      thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.54);
+
+      thudOsc.connect(thudGain);
+      thudGain.connect(masterGain);
+      thudOsc.start(now + 0.38);
+      thudOsc.stop(now + 0.55);
+    }
+
+    // Deep Hardcover Open / Close Thump & Spine Creak
+    function playHardcoverThump() {
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const masterGain = ctx.createGain();
+      masterGain.gain.setValueAtTime(soundVolume * 0.75, now);
+      masterGain.connect(ctx.destination);
+
+      // Heavy board air displacement & page swoosh
+      playRealisticPageTurnSound(0.78);
+
+      // Resonant low-frequency hardcover board thud
+      const osc = ctx.createOscillator();
+      const oscGain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(118, now + 0.34);
+      osc.frequency.exponentialRampToValueAtTime(38, now + 0.58);
+
+      const lowpass = ctx.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.setValueAtTime(190, now + 0.34);
+
+      oscGain.gain.setValueAtTime(0.001, now + 0.33);
+      oscGain.gain.linearRampToValueAtTime(0.46, now + 0.37);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.60);
+
+      osc.connect(lowpass);
+      lowpass.connect(oscGain);
+      oscGain.connect(masterGain);
+      osc.start(now + 0.33);
+      osc.stop(now + 0.62);
+    }
+
+    // Quiet Corner Lift Rustle when hovering or starting a drag
+    function playCornerHoverRustle() {
+      const nowMs = performance.now();
+      if (nowMs - lastHoverRustleTime < 260) return;
+      lastHoverRustleTime = nowMs;
+
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const dur = 0.09;
+      const len = Math.floor(ctx.sampleRate * dur);
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) {
+        const t = i / len;
+        data[i] = (Math.random() * 2 - 1) * Math.sin(t * Math.PI) * 0.22;
+      }
+
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1950, now);
+      filter.Q.value = 2.0;
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(soundVolume * 0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      src.start(now);
+    }
+
+    // Multi-Page Riffle Cascade when jumping across chapters
+    function playRiffleCascade(count) {
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+          playRealisticPageTurnSound(0.92 + i * 0.04);
+        }, i * 65);
+      }
+    }
+
+    /********************************************************************
+     * 5. STRICT "BOOK-ONLY" FULLSCREEN MODE & RESPONSIVE SCALING
+     ********************************************************************/
+    function adjustResponsiveBookScale() {
+      const scaler = document.getElementById('bookScaler');
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      if (isBookOnlyFullscreen) {
+        // In Book-Only Fullscreen, scale the 3D book to fill ~93% of the entire screen
+        const fullTargetW = 940 + 48;
+        const fullTargetH = 650 + 55;
+        let fullScale = Math.min(vw / fullTargetW, vh / fullTargetH);
+        if (isZoomed) fullScale *= 1.15;
+        scaler.style.transform = `scale(${fullScale.toFixed(3)})`;
+        return;
+      }
+
+      const baseWidth = 940 + 115;
+      const baseHeight = 650 + 150;
+
+      let scale = Math.min(vw / baseWidth, vh / baseHeight, 1.08);
+      if (isZoomed) {
+        scale *= 1.24;
+      }
+      scaler.style.transform = `scale(${scale.toFixed(3)})`;
+    }
+
+    function setBookOnlyFullscreen(enable) {
+      isBookOnlyFullscreen = enable;
+      document.body.classList.toggle('fullscreen-book-only', enable);
+
+      // Notify parent container so the iframe expands to full viewport
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'sparrowsql:book-fullscreen',
+          fullscreen: enable
+        }, '*');
+      }
+
+      // Close any open drawers/modals so ONLY the book is visible
+      if (enable) {
+        toggleTocDrawer(false);
+        const sqlModal = document.getElementById('sqlModal');
+        sqlModal.classList.add('hidden');
+        sqlModal.classList.remove('flex');
+
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {
+            // Even if iframe blocks native fullscreen, body.fullscreen-book-only hides all UI
+          });
+        }
+      } else {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+
+      setTimeout(adjustResponsiveBookScale, 50);
+      adjustResponsiveBookScale();
+    }
+
+    function toggleBookOnlyFullscreen() {
+      setBookOnlyFullscreen(!isBookOnlyFullscreen);
+    }
+
+    // Sync if user exits native browser fullscreen with Escape key
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && isBookOnlyFullscreen) {
+        isBookOnlyFullscreen = false;
+        document.body.classList.remove('fullscreen-book-only');
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'sparrowsql:book-fullscreen',
+            fullscreen: false
+          }, '*');
+        }
+        adjustResponsiveBookScale();
+      }
+    });
+
+    window.addEventListener('resize', adjustResponsiveBookScale);
+
+    /********************************************************************
+     * 6. TABLE OF CONTENTS DRAWER & BOOKMARKS
+     ********************************************************************/
+    const tocList = [
+      { label: "Front Cover — Complete SQL", page: 0, badge: "Cover" },
+      { label: "Title Page — SQL by sparrowsql", page: 1, badge: "p. 1" },
+      { label: "Welcome to SQL & Reading Key", page: 2, badge: "p. 2" },
+      { label: "Table of Contents", page: 3, badge: "p. 3" },
+      { label: "01 Databases and SQL", page: 4, badge: "p. 4" },
+      { label: "02 Tables, rows, columns, and data types", page: 5, badge: "p. 5" },
+      { label: "03 SQL command families", page: 6, badge: "p. 6" },
+      { label: "04 Create a database and tables", page: 7, badge: "p. 7" },
+      { label: "05 Keys and constraints", page: 8, badge: "p. 8" },
+      { label: "06 Insert and read data", page: 9, badge: "p. 9" },
+      { label: "07 Filtering with WHERE", page: 10, badge: "p. 10" },
+      { label: "08 Patterns, NULL, DISTINCT, and aliases", page: 11, badge: "p. 11" },
+      { label: "09 Sorting and limiting results", page: 12, badge: "p. 12" },
+      { label: "10 Aggregate functions", page: 13, badge: "p. 13" },
+      { label: "11 GROUP BY and HAVING", page: 14, badge: "p. 14" },
+      { label: "12 Update and delete safely", page: 15, badge: "p. 15" },
+      { label: "13 Changing table structures", page: 16, badge: "p. 16" },
+      { label: "14 Joins: connect related tables", page: 17, badge: "p. 17–18" },
+      { label: "15 Set operations", page: 19, badge: "p. 19–20" },
+      { label: "16 Subqueries", page: 21, badge: "p. 21" },
+      { label: "17 Views and indexes", page: 22, badge: "p. 22" },
+      { label: "18 Transactions and permissions", page: 23, badge: "p. 23" },
+      { label: "19 Design habits and debugging", page: 24, badge: "p. 24" },
+      { label: "20 Capstone: a tiny library database", page: 25, badge: "p. 25–26" },
+      { label: "21 Practice set with solutions", page: 27, badge: "p. 27–28" },
+      { label: "22 SQL quick reference and glossary", page: 29, badge: "p. 29" },
+      { label: "Back Cover", page: 31, badge: "Back" }
+    ];
+
+    function populateTocDrawer() {
+      const container = document.getElementById('tocItemsContainer');
+      container.innerHTML = tocList.map((item) => {
+        const spreadIdx = item.page === 0 ? 0 : item.page === 31 ? TOTAL_SHEETS : Math.ceil(item.page / 2);
+        return `
+          <button data-toc-spread="${spreadIdx}" class="toc-item-btn w-full text-left px-3.5 py-2.5 rounded-xl hover:bg-white/10 transition flex items-center justify-between gap-2 text-xs text-slate-300">
+            <span class="truncate font-medium">${item.label}</span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0">${item.badge}</span>
+          </button>
+        `;
+      }).join('');
+
+      container.querySelectorAll('.toc-item-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = parseInt(btn.dataset.tocSpread, 10);
+          goToSpread(target);
+          toggleTocDrawer(false);
+        });
+      });
+    }
+
+    function highlightActiveTocItem() {
+      document.querySelectorAll('.toc-item-btn').forEach(btn => {
+        const sp = parseInt(btn.dataset.tocSpread, 10);
+        if (sp === currentSpread) {
+          btn.classList.add('bg-blue-600/25', 'text-white', 'border', 'border-blue-500/30');
+        } else {
+          btn.classList.remove('bg-blue-600/25', 'text-white', 'border', 'border-blue-500/30');
+        }
+      });
+    }
+
+    function toggleTocDrawer(forceState) {
+      const drawer = document.getElementById('tocDrawer');
+      const isOpen = !drawer.classList.contains('translate-x-full');
+      const next = typeof forceState === 'boolean' ? forceState : !isOpen;
+      drawer.classList.toggle('translate-x-full', !next);
+    }
+
+    function renderBookmarks() {
+      const badge = document.getElementById('bookmarkBadge');
+      const listEl = document.getElementById('bookmarksList');
+
+      if (bookmarks.size === 0) {
+        if (badge) badge.classList.add('hidden');
+        if (listEl) listEl.innerHTML = `<span class="text-slate-500 italic">None yet</span>`;
+        return;
+      }
+
+      if (badge) {
+        badge.textContent = bookmarks.size;
+        badge.classList.remove('hidden');
+      }
+
+      if (listEl) {
+        listEl.innerHTML = Array.from(bookmarks).sort((a, b) => a - b).map(sp => {
+          const label = sp === 0 ? 'Cover' : sp === TOTAL_SHEETS ? 'Back' : `p.${sp * 2 - 1}-${sp * 2}`;
+          return `<button onclick="window.goToSpread(${sp})" class="px-2 py-0.5 rounded bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-400/30 text-[10px] font-mono">${label}</button>`;
+        }).join('');
+      }
+    }
+
+    /********************************************************************
+     * 7. LIVE SQL PLAYGROUND (SQL.JS + BUILT-IN RELATIONAL SEED DATA)
+     ********************************************************************/
+    let sqliteDb = null;
+    let SQLModule = null;
+
+    const SEED_SQL_SCRIPT = `
+      DROP TABLE IF EXISTS enrollments;
+      DROP TABLE IF EXISTS players;
+      DROP TABLE IF EXISTS teams;
+      DROP TABLE IF EXISTS orders;
+      DROP TABLE IF EXISTS customers;
+      DROP TABLE IF EXISTS loans;
+      DROP TABLE IF EXISTS books;
+      DROP TABLE IF EXISTS members;
+      DROP TABLE IF EXISTS students;
+      DROP TABLE IF EXISTS products;
+      DROP TABLE IF EXISTS notes;
+      DROP TABLE IF EXISTS employees;
+      DROP TABLE IF EXISTS courses;
+      DROP TABLE IF EXISTS staff;
+      DROP TABLE IF EXISTS campuses;
+      DROP TABLE IF EXISTS accounts;
+      DROP TABLE IF EXISTS inventory;
+      DROP TABLE IF EXISTS tasks;
+      DROP TABLE IF EXISTS users;
+
+      CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, role TEXT);
+      INSERT INTO users VALUES (1, 'sparrowsql', 'Teacher'), (2, 'asha_rao', 'Learner'), (3, 'kabir_shah', 'Analyst');
+
+      CREATE TABLE students (
+        student_id INTEGER PRIMARY KEY,
+        full_name TEXT NOT NULL,
+        city TEXT,
+        marks INTEGER
+      );
+      INSERT INTO students VALUES
+        (1, 'Asha Rao', 'Pune', 91),
+        (2, 'Kabir Shah', 'Mumbai', 84),
+        (3, 'Meera Das', 'Pune', 96),
+        (4, 'Zoya Khan', 'Nashik', 73),
+        (5, 'Rohan Verma', NULL, 88);
+
+      CREATE TABLE products (
+        product_id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        price REAL NOT NULL,
+        stock INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO products VALUES
+        (1, 'Mechanical Keyboard', 650.00, 12),
+        (2, 'USB-C Hub', 320.00, 25),
+        (3, '27-inch Monitor', 1450.00, 6),
+        (4, 'SQL Field Guide', 499.00, 40);
+
+      CREATE TABLE notes (note_id INTEGER PRIMARY KEY, body TEXT);
+      INSERT INTO notes VALUES (1, 'Practice SELECT queries'), (2, 'Review foreign keys');
+
+      CREATE TABLE teams (team_id INTEGER PRIMARY KEY, team_name TEXT NOT NULL UNIQUE);
+      INSERT INTO teams VALUES (1, 'Data Falcons'), (2, 'Query Owls');
+
+      CREATE TABLE players (
+        player_id INTEGER PRIMARY KEY,
+        player_name TEXT NOT NULL,
+        team_id INTEGER,
+        FOREIGN KEY (team_id) REFERENCES teams(team_id)
+      );
+      INSERT INTO players VALUES (1, 'Asha Rao', 1), (2, 'Kabir Shah', 1), (3, 'Meera Das', 2);
+
+      CREATE TABLE customers (customer_id INTEGER PRIMARY KEY, customer_name TEXT NOT NULL);
+      INSERT INTO customers VALUES (1, 'Aditi Sharma'), (2, 'Vikram Nair'), (3, 'Neha Gupta');
+
+      CREATE TABLE orders (
+        order_id INTEGER PRIMARY KEY,
+        customer_id INTEGER,
+        product TEXT NOT NULL,
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+      );
+      INSERT INTO orders VALUES
+        (101, 1, 'Laptop Stand'),
+        (102, 1, 'Wireless Mouse'),
+        (103, 2, 'SQL Field Guide');
+
+      CREATE TABLE courses (course_id INTEGER PRIMARY KEY, course_name TEXT NOT NULL);
+      INSERT INTO courses VALUES (1, 'SQL Fundamentals'), (2, 'Data Modelling'), (3, 'Query Optimization');
+
+      CREATE TABLE employees (employee_id INTEGER PRIMARY KEY, employee_name TEXT NOT NULL, manager_id INTEGER);
+      INSERT INTO employees VALUES
+        (1, 'Priya Menon (Director)', NULL),
+        (2, 'Arjun Sen (Lead)', 1),
+        (3, 'Dev Patel (Analyst)', 2);
+
+      CREATE TABLE staff (staff_id INTEGER PRIMARY KEY, staff_name TEXT, city TEXT);
+      INSERT INTO staff VALUES (1, 'Prof. R. Sen', 'Pune'), (2, 'M. Iyer', 'Delhi'), (3, 'N. Rao', 'Mumbai');
+
+      CREATE TABLE campuses (campus_id INTEGER PRIMARY KEY, city TEXT, active INTEGER);
+      INSERT INTO campuses VALUES (1, 'Pune', 1), (2, 'Mumbai', 1), (3, 'Nagpur', 0);
+
+      CREATE TABLE accounts (account_id INTEGER PRIMARY KEY, holder TEXT, balance REAL);
+      INSERT INTO accounts VALUES (1, 'Aarav', 1500.00), (2, 'Diya', 900.00);
+
+      CREATE TABLE inventory (item_id INTEGER PRIMARY KEY, item_name TEXT, quantity INTEGER);
+      INSERT INTO inventory VALUES (7, 'SQL Reference Card', 15);
+
+      CREATE TABLE enrollments (
+        student_id INTEGER NOT NULL,
+        course_id INTEGER NOT NULL,
+        enrolled_on TEXT,
+        PRIMARY KEY (student_id, course_id)
+      );
+      INSERT INTO enrollments VALUES (1, 1, '2026-09-01'), (1, 2, '2026-09-05'), (3, 1, '2026-09-02');
+
+      CREATE TABLE members (
+        member_id INTEGER PRIMARY KEY,
+        member_name TEXT NOT NULL,
+        city TEXT NOT NULL
+      );
+      INSERT INTO members VALUES
+        (1, 'Aarav', 'Pune'),
+        (2, 'Diya', 'Mumbai'),
+        (3, 'Ishaan', 'Pune'),
+        (4, 'Sana', 'Pune');
+
+      CREATE TABLE books (
+        book_id INTEGER PRIMARY KEY,
+        title TEXT NOT NULL,
+        author TEXT NOT NULL,
+        published_year INTEGER
+      );
+      INSERT INTO books VALUES
+        (10, 'SQL Made Clear', 'R. Sen', 2022),
+        (11, 'Thinking in Data', 'M. Iyer', 2021),
+        (12, 'The Query Habit', 'N. Rao', 2024);
+
+      CREATE TABLE loans (
+        loan_id INTEGER PRIMARY KEY,
+        member_id INTEGER NOT NULL,
+        book_id INTEGER NOT NULL,
+        loan_date TEXT NOT NULL,
+        returned_date TEXT
+      );
+      INSERT INTO loans VALUES
+        (100, 1, 10, '2026-09-01', '2026-09-10'),
+        (101, 1, 12, '2026-10-02', NULL),
+        (102, 2, 11, '2026-10-05', NULL),
+        (103, 3, 10, '2026-10-08', NULL);
+
+      CREATE TABLE tasks (
+        task_id INTEGER PRIMARY KEY,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open'
+      );
+      INSERT INTO tasks VALUES
+        (1, 'Learn SELECT', 'open'),
+        (2, 'Practise SQL joins', 'open'),
+        (3, 'Review grouping', 'done');
+    `;
+
+    async function initSqlPlayground() {
+      try {
+        if (window.initSqlJs) {
+          SQLModule = await window.initSqlJs({
+            locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+          });
+          resetSqlDatabase();
+        }
+      } catch (err) {
+        console.warn('SQL.js WASM fallback notice:', err);
+      }
+    }
+
+    function resetSqlDatabase() {
+      if (!SQLModule) return;
+      if (sqliteDb) sqliteDb.close();
+      sqliteDb = new SQLModule.Database();
+      sqliteDb.run(SEED_SQL_SCRIPT);
+    }
+
+    function runSqlInPlayground(sqlText) {
+      const outputEl = document.getElementById('sqlOutputContainer');
+      const statusBadge = document.getElementById('sqlStatusBadge');
+
+      if (!sqliteDb) {
+        outputEl.innerHTML = `<div class="text-amber-300">Initializing SQLite engine... Please click Run again in a moment.</div>`;
+        initSqlPlayground();
+        return;
+      }
+
+      try {
+        const startTime = performance.now();
+        const results = sqliteDb.exec(sqlText);
+        const elapsed = (performance.now() - startTime).toFixed(1);
+
+        statusBadge.textContent = `Executed in ${elapsed} ms`;
+        statusBadge.className = 'text-[11px] text-emerald-400 font-medium';
+
+        if (!results || results.length === 0) {
+          outputEl.innerHTML = `
+            <div class="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-200">
+              <div class="font-bold mb-1">✓ Statement executed successfully.</div>
+              <div class="text-xs text-emerald-300/80">No result rows returned (DDL / DML statement completed). Run a <code>SELECT</code> query to inspect the updated table.</div>
+            </div>
+          `;
+          return;
+        }
+
+        outputEl.innerHTML = results.map((res, idx) => {
+          const cols = res.columns.map(c => `<th class="px-3 py-2 bg-slate-900 text-left font-bold text-blue-300 border-b border-slate-700">${c}</th>`).join('');
+          const rows = res.values.map(row => `
+            <tr class="border-b border-slate-800/80 hover:bg-slate-900/60">
+              ${row.map(val => `<td class="px-3 py-1.5 font-mono text-slate-200">${val === null ? '<span class="text-amber-400 italic">NULL</span>' : val}</td>`).join('')}
+            </tr>
+          `).join('');
+
+          return `
+            <div class="mb-4 last:mb-0">
+              <div class="text-[11px] text-slate-400 mb-1.5 font-mono">${res.values.length} row(s) returned</div>
+              <div class="overflow-x-auto rounded-lg border border-slate-800">
+                <table class="w-full border-collapse text-xs">
+                  <thead><tr>${cols}</tr></thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        statusBadge.textContent = 'SQL Error';
+        statusBadge.className = 'text-[11px] text-rose-400 font-semibold';
+        outputEl.innerHTML = `
+          <div class="p-4 rounded-xl bg-rose-950/50 border border-rose-500/40 text-rose-200 font-mono text-xs">
+            <div class="font-bold text-rose-300 mb-1">SQL Execution Note / Dialect Check:</div>
+            <div>${err.message}</div>
+          </div>
+        `;
+      }
+    }
+
+    function openSqlPlayground(prefillSql) {
+      const modal = document.getElementById('sqlModal');
+      const editor = document.getElementById('sqlEditorInput');
+      if (prefillSql) {
+        editor.value = prefillSql;
+      }
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      runSqlInPlayground(editor.value);
+    }
+    window.openSqlPlayground = openSqlPlayground;
+
+    /********************************************************************
+     * 8. CLIPBOARD HELPER & TOAST NOTIFICATION
+     ********************************************************************/
+    function showToast(msg) {
+      const toast = document.getElementById('toastNotice');
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      setTimeout(() => {
+        toast.style.opacity = '0';
+      }, 2000);
+    }
+
+    function copyTextToClipboard(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        showToast('Copied SQL query to clipboard!');
+      } catch (e) {
+        showToast('Could not copy text');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    /********************************************************************
+     * 9. STUDIO AMBIENT BOKEH PARTICLES (MATCHING 3DBOOK BACKDROP)
+     ********************************************************************/
+    function initBokehParticles() {
+      const canvas = document.getElementById('bokehCanvas');
+      const ctx = canvas.getContext('2d');
+      let w = (canvas.width = window.innerWidth);
+      let h = (canvas.height = window.innerHeight);
+
+      window.addEventListener('resize', () => {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+      });
+
+      const particles = Array.from({ length: 38 }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        r: Math.random() * 2.4 + 0.8,
+        vx: (Math.random() - 0.5) * 0.18,
+        vy: (Math.random() - 0.5) * 0.15,
+        alpha: Math.random() * 0.55 + 0.15,
+        warm: Math.random() > 0.35
+      }));
+
+      function draw() {
+        ctx.clearRect(0, 0, w, h);
+        for (const p of particles) {
+          p.x += p.vx;
+          p.y += p.vy;
+          if (p.x < 0) p.x = w;
+          if (p.x > w) p.x = 0;
+          if (p.y < 0) p.y = h;
+          if (p.y > h) p.y = 0;
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = p.warm
+            ? `rgba(251, 191, 36, ${p.alpha})`
+            : `rgba(96, 165, 250, ${p.alpha})`;
+          ctx.fill();
+        }
+        requestAnimationFrame(draw);
+      }
+      draw();
+    }
+
+    /********************************************************************
+     * 10. EVENT LISTENERS (CONTROLS, KEYBOARD, TOUCH SWIPE, PARENT BRIDGE)
+     ********************************************************************/
+    window.addEventListener('message', (e) => {
+      const data = e.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'sparrowsql:goto-page' && typeof data.page === 'number') {
+        goToBookPage(data.page);
+      } else if (data.type === 'sparrowsql:goto-spread' && typeof data.spread === 'number') {
+        goToSpread(data.spread);
+      } else if (data.type === 'sparrowsql:set-fullscreen' && typeof data.fullscreen === 'boolean') {
+        setBookOnlyFullscreen(data.fullscreen);
+      }
+    });
+
+    window.onload = function () {
+      buildBookSheets();
+      populateTocDrawer();
+      adjustResponsiveBookScale();
+      initBokehParticles();
+      initSqlPlayground();
+
+      // Navigation buttons
+      document.getElementById('sidePrevBtn')?.addEventListener('click', () => goToSpread(currentSpread - 1));
+      document.getElementById('sideNextBtn')?.addEventListener('click', () => goToSpread(currentSpread + 1));
+      document.getElementById('bottomPrevBtn')?.addEventListener('click', () => goToSpread(currentSpread - 1));
+      document.getElementById('bottomNextBtn')?.addEventListener('click', () => goToSpread(currentSpread + 1));
+      document.getElementById('resetCoverBtn')?.addEventListener('click', () => goToSpread(0));
+
+      // Spread slider
+      document.getElementById('spreadSlider')?.addEventListener('input', (e) => {
+        goToSpread(parseInt(e.target.value, 10));
+      });
+
+      // Auto-flip playback
+      document.getElementById('autoFlipBtn')?.addEventListener('click', () => {
+        const playIcon = document.getElementById('playIcon');
+        const pauseIcon = document.getElementById('pauseIcon');
+        if (autoFlipTimer) {
+          clearInterval(autoFlipTimer);
+          autoFlipTimer = null;
+          playIcon?.classList.remove('hidden');
+          pauseIcon?.classList.add('hidden');
+        } else {
+          playIcon?.classList.add('hidden');
+          pauseIcon?.classList.remove('hidden');
+          autoFlipTimer = setInterval(() => {
+            if (currentSpread < TOTAL_SHEETS) {
+              goToSpread(currentSpread + 1);
+            } else {
+              goToSpread(0);
+            }
+          }, 3400);
+        }
+      });
+
+      // Sound & Volume
+      document.getElementById('soundToggleBtn')?.addEventListener('click', () => {
+        soundEnabled = !soundEnabled;
+        document.getElementById('soundOnIcon')?.classList.toggle('hidden', !soundEnabled);
+        document.getElementById('soundOffIcon')?.classList.toggle('hidden', soundEnabled);
+        showToast(soundEnabled ? 'Page turn sound ON' : 'Page turn sound MUTED');
+      });
+
+      document.getElementById('volumeSlider')?.addEventListener('input', (e) => {
+        soundVolume = parseInt(e.target.value, 10) / 100;
+      });
+
+      // Zoom toggle (if present)
+      const zoomToggleBtn = document.getElementById('zoomToggleBtn');
+      if (zoomToggleBtn) {
+        zoomToggleBtn.addEventListener('click', () => {
+          isZoomed = !isZoomed;
+          adjustResponsiveBookScale();
+          showToast(isZoomed ? 'Reading Zoom: 125%' : 'Reading Zoom: Standard');
+        });
+      }
+
+      // Strict Book-Only Fullscreen toggle
+      document.getElementById('fullscreenBtn')?.addEventListener('click', () => {
+        toggleBookOnlyFullscreen();
+      });
+
+      // Double-click dark studio background outside book to exit Book-Only Fullscreen
+      document.getElementById('bookViewport')?.addEventListener('dblclick', (e) => {
+        if (isBookOnlyFullscreen && !e.target.closest('.book-scene')) {
+          setBookOnlyFullscreen(false);
+        }
+      });
+
+      // Subtle 3D Camera Parallax as mouse moves across studio
+      window.addEventListener('mousemove', (e) => {
+        const rig = document.getElementById('bookParallaxRig');
+        if (!rig) return;
+        const nx = (e.clientX / window.innerWidth - 0.5) * 2;
+        const ny = (e.clientY / window.innerHeight - 0.5) * 2;
+        const tiltY = (nx * 3.2).toFixed(2);
+        const tiltX = (-ny * 2.4).toFixed(2);
+        rig.style.transform = `rotateY(${tiltY}deg) rotateX(${tiltX}deg)`;
+      });
+
+      // Mouse wheel page turning in Fullscreen or over book
+      let wheelCooldown = false;
+      window.addEventListener('wheel', (e) => {
+        const sqlModalOpen = !document.getElementById('sqlModal').classList.contains('hidden');
+        const tocOpen = !document.getElementById('tocDrawer').classList.contains('translate-x-full');
+        if (sqlModalOpen || tocOpen || wheelCooldown) return;
+        if (Math.abs(e.deltaY) < 25) return;
+
+        wheelCooldown = true;
+        if (e.deltaY > 0) {
+          goToSpread(currentSpread + 1);
+        } else {
+          goToSpread(currentSpread - 1);
+        }
+        setTimeout(() => { wheelCooldown = false; }, 520);
+      }, { passive: true });
+
+      // Bookmark button
+      document.getElementById('bookmarkBtn')?.addEventListener('click', () => {
+        if (bookmarks.has(currentSpread)) {
+          bookmarks.delete(currentSpread);
+          showToast('Bookmark removed');
+        } else {
+          bookmarks.add(currentSpread);
+          showToast('Spread bookmarked!');
+        }
+        renderBookmarks();
+        syncBookFrameAndUI();
+      });
+
+      // TOC Drawer
+      document.getElementById('tocToggleBtn')?.addEventListener('click', () => toggleTocDrawer());
+      document.getElementById('closeTocBtn')?.addEventListener('click', () => toggleTocDrawer(false));
+
+      // Live SQL Playground Modal
+      document.getElementById('openPlaygroundBtn')?.addEventListener('click', () => openSqlPlayground());
+      document.getElementById('closeSqlModalBtn').addEventListener('click', () => {
+        document.getElementById('sqlModal').classList.add('hidden');
+        document.getElementById('sqlModal').classList.remove('flex');
+      });
+      document.getElementById('sendToMainLabBtn').addEventListener('click', () => {
+        const sqlText = document.getElementById('sqlEditorInput').value;
+        document.getElementById('sqlModal').classList.add('hidden');
+        document.getElementById('sqlModal').classList.remove('flex');
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'sparrowsql:open-in-lab',
+            sql: sqlText
+          }, '*');
+        }
+      });
+      document.getElementById('executeSqlBtn').addEventListener('click', () => {
+        runSqlInPlayground(document.getElementById('sqlEditorInput').value);
+      });
+      document.getElementById('copyEditorSqlBtn').addEventListener('click', () => {
+        copyTextToClipboard(document.getElementById('sqlEditorInput').value);
+      });
+      document.getElementById('resetDbBtn').addEventListener('click', () => {
+        resetSqlDatabase();
+        runSqlInPlayground(document.getElementById('sqlEditorInput').value);
+        showToast('Practice database reset to initial state!');
+      });
+
+      document.querySelectorAll('.quick-sql-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const q = btn.dataset.quickSql;
+          document.getElementById('sqlEditorInput').value = q;
+          runSqlInPlayground(q);
+        });
+      });
+
+      // Delegated clicks for Copy & Run buttons inside book pages
+      document.body.addEventListener('click', (e) => {
+        const copyBtn = e.target.closest('.copy-sql-btn');
+        if (copyBtn) {
+          e.stopPropagation();
+          copyTextToClipboard(copyBtn.dataset.copySql);
+          return;
+        }
+        const runBtn = e.target.closest('.run-sql-btn');
+        if (runBtn) {
+          e.stopPropagation();
+          if (isBookOnlyFullscreen) setBookOnlyFullscreen(false);
+          openSqlPlayground(runBtn.dataset.runSql);
+          return;
+        }
+      });
+
+      // Keyboard Left / Right Arrows, F for Fullscreen, Escape to exit Book-Only Fullscreen
+      window.addEventListener('keydown', (e) => {
+        const sqlModalOpen = !document.getElementById('sqlModal').classList.contains('hidden');
+        if (sqlModalOpen) {
+          if (e.key === 'Escape') {
+            document.getElementById('sqlModal').classList.add('hidden');
+            document.getElementById('sqlModal').classList.remove('flex');
+          }
+          return;
+        }
+        if (e.key === 'Escape' && isBookOnlyFullscreen) {
+          setBookOnlyFullscreen(false);
+          return;
+        }
+        if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) {
+          toggleBookOnlyFullscreen();
+          return;
+        }
+        if (e.key === 'ArrowRight') goToSpread(currentSpread + 1);
+        if (e.key === 'ArrowLeft') goToSpread(currentSpread - 1);
+      });
+
+      // Touch swipe support on mobile/tablet
+      let touchStartX = null;
+      const viewport = document.getElementById('bookViewport');
+      viewport.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) touchStartX = e.touches[0].clientX;
+      }, { passive: true });
+
+      viewport.addEventListener('touchend', (e) => {
+        if (touchStartX === null || e.changedTouches.length === 0) return;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) > 45) {
+          if (dx < 0) goToSpread(currentSpread + 1);
+          else goToSpread(currentSpread - 1);
+        }
+        touchStartX = null;
+      }, { passive: true });
+    };
+  </script>
+</body>
+</html>
